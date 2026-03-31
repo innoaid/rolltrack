@@ -329,6 +329,13 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <!-- ═══ PAYMENTS ═══ -->
 <div class="pg" id="pg-payments">
   <div class="sh" style="margin-top:8px"><h2>Subcon Payments</h2><span class="tag tgd">SC01</span></div>
+
+  <!-- WEEKLY SUMMARY -->
+  <div id="weekOverdue"></div>
+  <div id="weekDue"></div>
+  <div id="weekTotal"></div>
+  <div id="weekUpcoming"></div>
+
   <div class="pay-sum" id="pay-summary">
     <div class="pay-sum-row">
       <div class="pay-sum-item"><div class="pay-sum-n">—</div><div class="pay-sum-l">Total Owed</div></div>
@@ -344,6 +351,22 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <button class="btn btn-b" style="margin-bottom:11px" onclick="generateReport()">📄 &nbsp;Generate SC01 Report</button>
   <div id="payList"></div>
+</div>
+
+<!-- BATCH PAY MODAL -->
+<div class="ov" id="batchPayOv">
+  <div class="modal" style="max-height:85vh;overflow-y:auto">
+    <div class="mh"></div>
+    <div class="mt">Mark Week as Paid</div>
+    <div class="fg"><label>Date Paid</label><input type="date" id="bp_date"></div>
+    <div class="fg"><label>Payment Reference</label><input type="text" id="bp_ref" placeholder="e.g. TT-20260401-BATCH"></div>
+    <div id="bp_list" style="margin:10px 0;font-size:13px"></div>
+    <div id="bp_total" style="font-weight:800;font-size:15px;margin-bottom:10px"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeBatchPay()">Cancel</button>
+      <button class="btn btn-g" style="flex:2" onclick="confirmBatchPay()">Confirm — Mark All Paid</button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ REORDER ═══ -->
@@ -1040,6 +1063,9 @@ function renderPayments() {
   const pgEl = ge('pg-payments');
   if (!pgEl) return;
 
+  // Weekly summary (overdue, due this week, upcoming)
+  renderWeeklySummary();
+
   // Summary
   const sumEl = ge('pay-summary');
   if (sumEl) {
@@ -1154,10 +1180,167 @@ function renderPayments() {
   }).join('');
 }
 
-function fmtDate(d) {
-  if (!d) return '—';
-  try { return new Date(d).toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'}); }
-  catch(e) { return String(d).substring(0,10); }
+// ── Weekly Payment Summary ────────────────────────────
+let batchPayItems = [];
+
+function getPayDueDate(p, pNum) {
+  // P1 due = approval date (CreatedAt field as proxy, or Payment record creation)
+  // P2 due = P1 paid date + 14 days (only if P1 is paid)
+  if (pNum === 1) {
+    const created = p['CreatedAt'] || '';
+    return created ? parseDate(created) : null;
+  }
+  if (pNum === 2) {
+    if ((p['Payment1Status']||'') !== 'paid') return null; // P2 not due yet
+    const p1d = p['Payment1Date'] || '';
+    if (!p1d) return null;
+    const d = parseDate(p1d);
+    if (!d) return null;
+    d.setDate(d.getDate() + 14);
+    return d;
+  }
+  return null;
+}
+
+function buildWeeklyItems() {
+  const now   = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const in7   = new Date(today); in7.setDate(in7.getDate() + 7);
+  const in30  = new Date(today); in30.setDate(in30.getDate() + 30);
+
+  const overdue = [], dueThisWeek = [], upcoming = [];
+
+  payData.forEach(p => {
+    const name = p['SubconName'] || p['SubconCode'] || '?';
+    const qno  = p['QuotationNo'] || '';
+    const pid  = p['PaymentID'] || '';
+
+    [1, 2].forEach(n => {
+      const st  = p[`Payment${n}Status`] || 'unpaid';
+      if (st === 'paid') return;
+      const amt = Number(p[`Payment${n}Amount`] || 0);
+      if (!amt) return;
+
+      const due = getPayDueDate(p, n);
+      const item = { name, qno, pid, pNum: n, amt, due, p };
+
+      if (!due) {
+        // P2 where P1 not paid — skip from weekly view
+        return;
+      }
+      if (due < today) {
+        item.daysOverdue = Math.ceil((today - due) / 86400000);
+        overdue.push(item);
+      } else if (due <= in7) {
+        dueThisWeek.push(item);
+      } else if (due <= in30) {
+        upcoming.push(item);
+      }
+    });
+  });
+
+  return { overdue, dueThisWeek, upcoming };
+}
+
+function renderWeeklySummary() {
+  const { overdue, dueThisWeek, upcoming } = buildWeeklyItems();
+
+  // OVERDUE
+  const ovEl = ge('weekOverdue');
+  if (ovEl) {
+    if (overdue.length) {
+      ovEl.innerHTML = `<div style="background:var(--red-l);border:1.5px solid var(--red);border-radius:12px;padding:12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Overdue</div>
+        ${overdue.map(i => `<div style="font-size:13px;padding:4px 0;color:var(--ink)">
+          <strong>${i.name}</strong> · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong> · <span style="color:var(--red)">${i.daysOverdue}d overdue</span>
+        </div>`).join('')}
+      </div>`;
+    } else { ovEl.innerHTML = ''; }
+  }
+
+  // DUE THIS WEEK
+  const dwEl = ge('weekDue');
+  if (dwEl) {
+    if (dueThisWeek.length) {
+      dwEl.innerHTML = `<div style="background:var(--amber-l);border:1.5px solid rgba(255,176,32,.4);border-radius:12px;padding:12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Due This Week</div>
+        ${dueThisWeek.map(i => `<div style="font-size:13px;padding:4px 0;color:var(--ink)">
+          <strong>${i.name}</strong> · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong> · Due ${fmtDate(i.due)}
+        </div>`).join('')}
+      </div>`;
+    } else { dwEl.innerHTML = ''; }
+  }
+
+  // TOTAL + MARK WEEK AS PAID
+  const actionable = [...overdue, ...dueThisWeek];
+  const totalDue   = actionable.reduce((s, i) => s + i.amt, 0);
+  const totEl = ge('weekTotal');
+  if (totEl) {
+    if (actionable.length) {
+      totEl.innerHTML = `<div style="background:linear-gradient(135deg,var(--card),var(--card2));border:2px solid var(--orange);border-radius:14px;padding:16px;margin-bottom:10px;text-align:center">
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Total to prepare this Monday</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:700;color:var(--orange);line-height:1.1">RM ${fmtN(totalDue)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${actionable.length} payment${actionable.length > 1 ? 's' : ''} (${overdue.length} overdue + ${dueThisWeek.length} this week)</div>
+        <button class="btn btn-o" style="margin-top:12px;width:100%" onclick="openBatchPay()">Mark Week as Paid</button>
+      </div>`;
+    } else {
+      totEl.innerHTML = `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;text-align:center">
+        <div style="font-size:13px;color:var(--muted)">No payments due this week</div>
+      </div>`;
+    }
+  }
+
+  // UPCOMING
+  const upEl = ge('weekUpcoming');
+  if (upEl) {
+    if (upcoming.length) {
+      upEl.innerHTML = `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
+        <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Upcoming (8–30 days)</div>
+        ${upcoming.map(i => `<div style="font-size:13px;padding:4px 0;color:var(--muted)">
+          <strong>${i.name}</strong> · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong> · Due ${fmtDate(i.due)}
+        </div>`).join('')}
+      </div>`;
+    } else { upEl.innerHTML = ''; }
+  }
+}
+
+function openBatchPay() {
+  const { overdue, dueThisWeek } = buildWeeklyItems();
+  batchPayItems = [...overdue, ...dueThisWeek];
+  if (!batchPayItems.length) { toast('No payments due'); return; }
+  ge('bp_date').value = new Date().toISOString().split('T')[0];
+  ge('bp_ref').value  = '';
+  ge('bp_list').innerHTML = batchPayItems.map(i =>
+    `<div style="padding:3px 0;border-bottom:1px solid var(--border)">
+      ${i.name} · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong>
+    </div>`
+  ).join('');
+  const total = batchPayItems.reduce((s, i) => s + i.amt, 0);
+  ge('bp_total').textContent = 'Total: RM ' + fmtN(total);
+  ge('batchPayOv').classList.add('open');
+}
+function closeBatchPay() { ge('batchPayOv').classList.remove('open'); batchPayItems = []; }
+
+async function confirmBatchPay() {
+  const date = ge('bp_date').value;
+  const ref  = ge('bp_ref').value.trim();
+  if (!date) { toast('Select a date'); return; }
+  if (!batchPayItems.length) return;
+  closeBatchPay();
+  loading(true, 'Marking ' + batchPayItems.length + ' payments...');
+  let ok = 0, fail = 0;
+  for (const item of batchPayItems) {
+    try {
+      const res = await jsonp({
+        action: 'markPayment', paymentID: item.pid,
+        paymentNumber: item.pNum, status: 'paid', date, reference: ref
+      });
+      if (res.success) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  loading(false);
+  toast(`Marked ${ok} paid` + (fail ? `, ${fail} failed` : ''));
+  await loadPayments();
 }
 
 function openPayModal(paymentID, paymentNumber) {
