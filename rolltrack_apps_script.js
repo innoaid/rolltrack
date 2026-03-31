@@ -240,12 +240,13 @@ function getPendingSubmissions() {
   var statusIdx = headers.indexOf('Status');
   var result    = [];
   for (var r = 1; r < data.length; r++) {
-    if (String(data[r][statusIdx]) !== 'pending') continue;
+    if (String(data[r][statusIdx]).trim().toLowerCase() !== 'pending') continue;
     var obj = {};
     for (var c = 0; c < headers.length; c++) {
       var v = data[r][c];
-      obj[headers[c].charAt(0).toLowerCase() + headers[c].slice(1)] =
-        v instanceof Date ? v.toISOString() : v;
+      // Normalise key: lowercase first char, but special-case "ID" → "id"
+      var key = headers[c] === 'ID' ? 'id' : headers[c].charAt(0).toLowerCase() + headers[c].slice(1);
+      obj[key] = v instanceof Date ? v.toISOString() : v;
     }
     result.push(obj);
   }
