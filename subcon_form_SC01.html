@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1923">
+<title>Team Atik — RollTrack</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f1923;
+  --card:#162130;
+  --card2:#1c2b3a;
+  --border:#1e3248;
+  --ink:#e8f0f8;
+  --muted:#4a6480;
+  --teal:#00d4aa;
+  --teal-d:#009e7a;
+  --teal-l:rgba(0,212,170,.12);
+  --amber:#ffb020;
+  --amber-l:rgba(255,176,32,.12);
+  --red:#ff4f4f;
+  --red-l:rgba(255,79,79,.12);
+  --blue:#3b9eff;
+  --blue-l:rgba(59,158,255,.12);
+}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;overflow-x:hidden}
+
+/* ── SPLASH / HOME ── */
+.screen{display:none;min-height:100vh;flex-direction:column}
+.screen.show{display:flex}
+
+/* HOME SCREEN */
+#s-home{background:var(--bg);padding:0}
+.home-top{padding:36px 20px 24px;text-align:center;position:relative}
+.home-top::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%, rgba(0,212,170,.15) 0%, transparent 70%);pointer-events:none}
+.brand{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--muted);margin-bottom:12px}
+.company-badge{display:inline-flex;align-items:center;gap:8px;background:var(--teal-l);border:1.5px solid rgba(0,212,170,.3);border-radius:100px;padding:8px 18px;margin-bottom:20px}
+.company-icon{width:32px;height:32px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#000}
+.company-name{font-size:15px;font-weight:800;color:var(--teal)}
+.balance-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:20px;margin:0 20px 8px;position:relative;overflow:hidden}
+.balance-card::before{content:'';position:absolute;top:-30px;right:-30px;width:100px;height:100px;border-radius:50%;background:rgba(0,212,170,.06)}
+.bal-label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.bal-num{font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:1;color:var(--teal);margin-bottom:2px}
+.bal-sub{font-size:12px;color:var(--muted);font-weight:600}
+.bal-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.bstat{text-align:center}
+.bstat-n{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;margin-bottom:2px}
+.bstat-n.pick{color:var(--amber)}.bstat-n.inst{color:var(--blue)}
+.bstat-l{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+
+/* ACTION BUTTONS */
+.actions-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:20px 20px 10px}
+.actions{display:flex;flex-direction:column;gap:10px;padding:0 20px 32px}
+.action-btn{border:none;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .18s;text-align:left;width:100%}
+.action-btn:active{transform:scale(.97)}
+.action-btn.pickup{background:linear-gradient(135deg,#1a3a2a,#0f2a1a);border:1.5px solid rgba(0,212,170,.3)}
+.action-btn.install{background:linear-gradient(135deg,#2a2a10,#1a1a08);border:1.5px solid rgba(255,176,32,.3)}
+.action-btn.return{background:linear-gradient(135deg,#2a1010,#1a0808);border:1.5px solid rgba(255,79,79,.3)}
+.action-icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.pickup .action-icon{background:var(--teal-l)}
+.install .action-icon{background:var(--amber-l)}
+.return .action-icon{background:var(--red-l)}
+.action-text{}
+.action-main{font-size:18px;font-weight:900;margin-bottom:2px}
+.pickup .action-main{color:var(--teal)}
+.install .action-main{color:var(--amber)}
+.return .action-main{color:var(--red)}
+.action-malay{font-size:12px;font-weight:700;color:var(--muted)}
+.action-arrow{margin-left:auto;font-size:20px;color:var(--muted);flex-shrink:0}
+
+/* ── FORM SCREENS ── */
+.form-screen{background:var(--bg);flex-direction:column}
+.form-header{padding:16px 16px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:0;z-index:50}
+.back-btn{width:36px;height:36px;border-radius:10px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0}
+.form-title-wrap{}
+.form-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.5px}
+.form-sub{font-size:11px;color:var(--muted);font-weight:600}
+.form-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;margin-left:auto}
+.fi-teal{background:var(--teal-l)}.fi-amber{background:var(--amber-l)}.fi-red{background:var(--red-l)}
+
+/* FORM BODY */
+.form-body{flex:1;padding:16px;overflow-y:auto;padding-bottom:100px}
+.fgroup{margin-bottom:14px}
+.flabel{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;display:block}
+.flabel .bm{font-size:10px;color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0}
+input,select,textarea{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--ink);font-family:'Nunito',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .18s}
+input:focus,select:focus{border-color:var(--teal);background:var(--card2)}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%234a6480' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
+.qty-wrap{position:relative}
+.qty-input{font-family:'Bebas Neue',sans-serif;font-size:36px;text-align:center;padding:14px;letter-spacing:1px;color:var(--teal)}
+.qty-unit{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.bal-warning{background:var(--amber-l);border:1px solid rgba(255,176,32,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--amber);font-weight:700;margin-top:6px;display:none}
+
+/* PHOTO SECTION */
+.photo-section{background:var(--card);border:1.5px dashed var(--border);border-radius:12px;overflow:hidden}
+.photo-placeholder{padding:24px 16px;text-align:center;cursor:pointer}
+.photo-placeholder-icon{font-size:36px;margin-bottom:8px}
+.photo-placeholder-text{font-size:14px;font-weight:800;color:var(--teal);margin-bottom:2px}
+.photo-placeholder-sub{font-size:11px;color:var(--muted);font-weight:600}
+.photo-preview{display:none;position:relative}
+.photo-preview img{width:100%;max-height:220px;object-fit:cover;display:block}
+.photo-retake{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif}
+#photoInput,#photoInput2,#photoInput3{display:none}
+.photo-required-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red-l);border:1px solid rgba(255,79,79,.2);border-radius:20px;padding:3px 9px;font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}
+
+/* SUBMIT AREA */
+.submit-area{position:fixed;bottom:0;left:0;right:0;padding:14px 16px;background:var(--bg);border-top:1px solid var(--border);max-width:480px;margin:0 auto}
+.submit-btn{width:100%;padding:16px;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:10px}
+.submit-btn:active{transform:scale(.97)}
+.submit-btn.teal{background:var(--teal);color:#000}
+.submit-btn.amber{background:var(--amber);color:#000}
+.submit-btn.red{background:var(--red);color:#fff}
+.submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+/* SUCCESS SCREEN */
+#s-success{background:var(--bg);align-items:center;justify-content:center;text-align:center;padding:32px 24px}
+.success-icon{font-size:72px;margin-bottom:16px;animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
+@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
+.success-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:1px;margin-bottom:8px}
+.success-sub{font-size:14px;color:var(--muted);font-weight:600;line-height:1.6;margin-bottom:24px}
+.wa-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#25d366;color:#fff;border:none;border-radius:12px;padding:16px 24px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;width:100%;max-width:320px;margin:0 auto 12px;transition:all .15s}
+.wa-btn:active{transform:scale(.97)}
+.wa-icon{font-size:22px}
+.home-again-btn{background:var(--card);color:var(--ink);border:1.5px solid var(--border);border-radius:12px;padding:13px 24px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;width:100%;max-width:320px;margin:0 auto;display:block}
+
+/* LOADING OVERLAY */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,25,35,.9);z-index:999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.loading-overlay.show{display:flex}
+.spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-text{font-size:14px;font-weight:700;color:var(--muted)}
+
+/* INFO BOX */
+.infobox{border-radius:10px;padding:10px 13px;font-size:12px;line-height:1.65;border:1px solid;margin-bottom:12px;font-weight:600}
+.ib-teal{background:var(--teal-l);border-color:rgba(0,212,170,.25);color:var(--teal)}
+.ib-amber{background:var(--amber-l);border-color:rgba(255,176,32,.25);color:var(--amber)}
+
+/* ERROR */
+.field-error{font-size:11px;color:var(--red);font-weight:700;margin-top:4px;display:none}
+.field-error.show{display:block}
+
+/* TOAST */
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-60px);background:var(--red);color:#fff;padding:10px 18px;border-radius:100px;font-size:13px;font-weight:800;z-index:9999;transition:transform .28s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+body{max-width:480px;margin:0 auto}
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Sending...</div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- ═══ HOME SCREEN ═══ -->
+<div class="screen show" id="s-home">
+  <div class="home-top">
+    <div class="brand">ROLLTRACK PRO · Innovation AID</div>
+    <div class="company-badge">
+      <div class="company-icon">A</div>
+      <div class="company-name">Team Atik</div>
+    </div>
+    <div class="balance-card" id="balanceCard">
+      <div class="bal-label">Your Roll Balance / Baki Gulung Anda</div>
+      <div class="bal-num" id="balNum">—</div>
+      <div class="bal-sub">rolls available / gulung tersedia</div>
+      <div class="bal-stats">
+        <div class="bstat">
+          <div class="bstat-n pick" id="totalPickup">—</div>
+          <div class="bstat-l">📦 Picked Up</div>
+        </div>
+        <div class="bstat">
+          <div class="bstat-n inst" id="totalInstalled">—</div>
+          <div class="bstat-l">🔧 Installed</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions-title">What do you want to do? / Apa yang anda nak buat?</div>
+  <div class="actions">
+
+    <button class="action-btn pickup" onclick="goForm('pickup')">
+      <div class="action-icon">📦</div>
+      <div class="action-text">
+        <div class="action-main">PICKUP ROLLS</div>
+        <div class="action-malay">Ambil gulung dari gudang</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </button>
+
+    <button class="action-btn install" onclick="goForm('install')">
+      <div class="action-icon">🔧</div>
+      <div class="action-text">
+        <div class="action-main">INSTALLATION REPORT</div>
+        <div class="action-malay">Laporan pasang membrane</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </button>
+
+    <button class="action-btn return" onclick="goForm('return')">
+      <div class="action-icon">↩️</div>
+      <div class="action-text">
+        <div class="action-main">RETURN ROLLS</div>
+        <div class="action-malay">Pulang gulung ke gudang</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </button>
+
+  </div>
+</div>
+
+<!-- ═══ PICKUP FORM ═══ -->
+<div class="screen form-screen" id="s-pickup">
+  <div class="form-header">
+    <div class="back-btn" onclick="goHome()">‹</div>
+    <div class="form-title-wrap">
+      <div class="form-title">PICKUP ROLLS</div>
+      <div class="form-sub">Ambil gulung dari gudang · Team Atik</div>
+    </div>
+    <div class="form-icon fi-teal">📦</div>
+  </div>
+  <div class="form-body">
+    <div class="infobox ib-teal">📋 Fill in how many rolls you are taking today.<br>Isi berapa gulung yang anda ambil hari ini.</div>
+
+    <div class="fgroup">
+      <label class="flabel">Date / Tarikh</label>
+      <input type="date" id="pu_date">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Number of Rolls / Bilangan Gulung <span class="photo-required-badge">Required</span></label>
+      <div class="qty-wrap">
+        <input type="number" class="qty-input" id="pu_qty" placeholder="0" min="1" oninput="checkBalance()">
+        <div class="qty-unit">Rolls</div>
+      </div>
+      <div class="bal-warning" id="pu_bal_warn">⚠️ This exceeds your approved balance!</div>
+      <div class="field-error" id="pu_qty_err">Please enter number of rolls / Sila masukkan bilangan gulung</div>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Notes / Nota <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
+      <input type="text" id="pu_notes" placeholder="e.g. For 2 sites / Untuk 2 tapak">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">
+        Photo of Rolls in Vehicle / Foto Gulung dalam Kenderaan
+        <span class="photo-required-badge">📷 Required</span>
+      </label>
+      <div class="photo-section" onclick="document.getElementById('photoInput').click()">
+        <div class="photo-placeholder" id="pu_placeholder">
+          <div class="photo-placeholder-icon">📷</div>
+          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
+          <div class="photo-placeholder-sub">Show rolls loaded in vehicle · Tunjuk gulung dalam kenderaan</div>
+        </div>
+        <div class="photo-preview" id="pu_preview">
+          <img id="pu_img" src="" alt="Photo">
+          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('pu')">🔄 Retake</button>
+        </div>
+      </div>
+      <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="handlePhoto(this,'pu')">
+      <div class="field-error" id="pu_photo_err">Photo is required / Foto diperlukan</div>
+    </div>
+  </div>
+  <div class="submit-area">
+    <button class="submit-btn teal" id="pu_submit" onclick="submitPickup()">📦 SUBMIT PICKUP</button>
+  </div>
+</div>
+
+<!-- ═══ INSTALL FORM ═══ -->
+<div class="screen form-screen" id="s-install">
+  <div class="form-header">
+    <div class="back-btn" onclick="goHome()">‹</div>
+    <div class="form-title-wrap">
+      <div class="form-title">INSTALLATION REPORT</div>
+      <div class="form-sub">Laporan pasang membrane · Team Atik</div>
+    </div>
+    <div class="form-icon fi-amber">🔧</div>
+  </div>
+  <div class="form-body">
+    <div class="infobox ib-amber">📋 Report rolls installed at a site today.<br>Laporkan gulung yang dipasang di tapak hari ini.</div>
+
+    <div class="fgroup">
+      <label class="flabel">Quotation No. / No. Sebutan Harga</label>
+      <select id="in_quot">
+        <option value="">— Select / Pilih —</option>
+      </select>
+      <div class="field-error" id="in_quot_err">Please select quotation / Sila pilih sebutan harga</div>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Install Date / Tarikh Pasang</label>
+      <input type="date" id="in_date">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Rolls Installed / Gulung Dipasang</label>
+      <div class="qty-wrap">
+        <input type="number" class="qty-input" id="in_qty" placeholder="0" min="1" style="color:var(--amber)" oninput="checkInstallQty()">
+        <div class="qty-unit">Rolls</div>
+      </div>
+      <div class="bal-warning" id="in_bal_warn" style="display:none">⚠️ More than your current balance! Check qty.<br>Melebihi baki anda! Semak kuantiti.</div>
+      <div class="field-error" id="in_qty_err">Please enter rolls installed / Sila masukkan bilangan gulung</div>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Area / Zone <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
+      <input type="text" id="in_area" placeholder="e.g. Blk 62, Level 3 / Blok 62, Aras 3">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">
+        Photo of Installed Area / Foto Kawasan Dipasang
+        <span class="photo-required-badge">📷 Required</span>
+      </label>
+      <div class="photo-section" onclick="document.getElementById('photoInput2').click()">
+        <div class="photo-placeholder" id="in_placeholder">
+          <div class="photo-placeholder-icon">📷</div>
+          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
+          <div class="photo-placeholder-sub">Show installed membrane · Tunjuk membrane yang dipasang</div>
+        </div>
+        <div class="photo-preview" id="in_preview">
+          <img id="in_img" src="" alt="Photo">
+          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('in')">🔄 Retake</button>
+        </div>
+      </div>
+      <input type="file" id="photoInput2" accept="image/*" capture="environment" onchange="handlePhoto(this,'in')">
+      <div class="field-error" id="in_photo_err">Photo is required / Foto diperlukan</div>
+    </div>
+  </div>
+  <div class="submit-area">
+    <button class="submit-btn amber" id="in_submit" onclick="submitInstall()">🔧 SUBMIT REPORT</button>
+  </div>
+</div>
+
+<!-- ═══ RETURN FORM ═══ -->
+<div class="screen form-screen" id="s-return">
+  <div class="form-header">
+    <div class="back-btn" onclick="goHome()">‹</div>
+    <div class="form-title-wrap">
+      <div class="form-title">RETURN ROLLS</div>
+      <div class="form-sub">Pulang gulung ke gudang · Team Atik</div>
+    </div>
+    <div class="form-icon fi-red">↩️</div>
+  </div>
+  <div class="form-body">
+    <div class="infobox" style="background:var(--red-l);border-color:rgba(255,79,79,.25);color:var(--red)">📋 Returning rolls back to warehouse.<br>Memulangkan gulung ke gudang.</div>
+
+    <div class="fgroup">
+      <label class="flabel">Return Date / Tarikh Pulang</label>
+      <input type="date" id="re_date">
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Rolls Returned / Gulung Dipulangkan</label>
+      <div class="qty-wrap">
+        <input type="number" class="qty-input" id="re_qty" placeholder="0" min="1" style="color:var(--red)">
+        <div class="qty-unit">Rolls</div>
+      </div>
+      <div class="field-error" id="re_qty_err">Please enter qty / Sila masukkan kuantiti</div>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Condition / Keadaan</label>
+      <select id="re_cond">
+        <option value="good">Good / Baik</option>
+        <option value="damaged">Damaged / Rosak</option>
+        <option value="partial">Partially used / Guna separuh</option>
+      </select>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">Reason / Sebab</label>
+      <select id="re_reason">
+        <option value="excess">Excess rolls / Gulung lebihan</option>
+        <option value="cancelled">Job cancelled / Kerja dibatalkan</option>
+        <option value="damaged">Damaged / Rosak</option>
+        <option value="wrong">Wrong product / Produk salah</option>
+        <option value="other">Other / Lain-lain</option>
+      </select>
+    </div>
+
+    <div class="fgroup">
+      <label class="flabel">
+        Photo of Returned Rolls / Foto Gulung Dipulangkan
+        <span class="photo-required-badge">📷 Required</span>
+      </label>
+      <div class="photo-section" onclick="document.getElementById('photoInput3').click()">
+        <div class="photo-placeholder" id="re_placeholder">
+          <div class="photo-placeholder-icon">📷</div>
+          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
+          <div class="photo-placeholder-sub">Show rolls being returned · Tunjuk gulung yang dipulangkan</div>
+        </div>
+        <div class="photo-preview" id="re_preview">
+          <img id="re_img" src="" alt="Photo">
+          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('re')">🔄 Retake</button>
+        </div>
+      </div>
+      <input type="file" id="photoInput3" accept="image/*" capture="environment" onchange="handlePhoto(this,'re')">
+      <div class="field-error" id="re_photo_err">Photo is required / Foto diperlukan</div>
+    </div>
+  </div>
+  <div class="submit-area">
+    <button class="submit-btn red" id="re_submit" onclick="submitReturn()">↩️ SUBMIT RETURN</button>
+  </div>
+</div>
+
+<!-- ═══ SUCCESS SCREEN ═══ -->
+<div class="screen" id="s-success">
+  <div class="success-icon" id="successIcon">✅</div>
+  <div class="success-title" id="successTitle">SUBMITTED!</div>
+  <div class="success-sub" id="successSub">Your submission has been sent.<br>Boss will review and approve.<br><br>Penghantaran anda telah dihantar.<br>Boss akan semak dan luluskan.</div>
+  <button class="wa-btn" id="waBtn" onclick="sendWhatsApp()">
+    <span class="wa-icon">💬</span>
+    Notify Boss via WhatsApp
+  </button>
+  <button class="home-again-btn" onclick="goHome()">← Back to Home / Kembali ke Utama</button>
+</div>
+
+<script>
+// ══════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════
+const API_URL   = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
+const SUBCON_CODE = 'SC01';
+const SUBCON_NAME = 'Team Atik';
+const BOSS_WA    = '60146938657';
+
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let photos = { pu: null, in: null, re: null };
+let balance = 0;
+let lastSubmission = {};
+let quotations = [];
+
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
+window.addEventListener('load', () => {
+  setTodayDates();
+  loadSubconData();
+});
+
+function setTodayDates() {
+  const today = new Date().toISOString().split('T')[0];
+  ['pu_date','in_date','re_date'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = today;
+  });
+}
+
+async function loadSubconData() {
+  try {
+    const res = await fetch(`${API_URL}?action=getSubcon&code=${SUBCON_CODE}`);
+    const data = await res.json();
+    if (data.success) {
+      balance = data.balance || 0;
+      document.getElementById('balNum').textContent = balance;
+      document.getElementById('totalPickup').textContent = data.totalPickup || 0;
+      document.getElementById('totalInstalled').textContent = data.totalInstalled || 0;
+
+      // Populate quotation dropdown
+      quotations = data.quotations || [];
+      const sel = document.getElementById('in_quot');
+      sel.innerHTML = '<option value="">— Select / Pilih —</option>';
+      quotations.forEach(q => {
+        const opt = document.createElement('option');
+        opt.value = q.no;
+        opt.textContent = `${q.no} — ${q.project||q.client}`;
+        sel.appendChild(opt);
+      });
+    }
+  } catch (e) {
+    // Offline fallback — show cached or zero
+    document.getElementById('balNum').textContent = balance;
+  }
+}
+
+// ══════════════════════════════════════
+// NAVIGATION
+// ══════════════════════════════════════
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+  window.scrollTo(0,0);
+}
+
+function goHome() {
+  showScreen('s-home');
+  loadSubconData(); // refresh balance
+}
+
+function goForm(type) {
+  showScreen('s-' + type);
+}
+
+// ══════════════════════════════════════
+// PHOTO HANDLING
+// ══════════════════════════════════════
+function handlePhoto(input, prefix) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // Compress image before storing
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    compressImage(e.target.result, (compressed) => {
+      photos[prefix] = compressed;
+      document.getElementById(prefix + '_placeholder').style.display = 'none';
+      document.getElementById(prefix + '_preview').style.display = 'block';
+      document.getElementById(prefix + '_img').src = compressed;
+      document.getElementById(prefix + '_photo_err').classList.remove('show');
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function retakePhoto(prefix) {
+  photos[prefix] = null;
+  document.getElementById(prefix + '_placeholder').style.display = 'block';
+  document.getElementById(prefix + '_preview').style.display = 'none';
+  const inputMap = { pu: 'photoInput', in: 'photoInput2', re: 'photoInput3' };
+  document.getElementById(inputMap[prefix]).value = '';
+}
+
+function compressImage(dataUrl, callback) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement('canvas');
+    const MAX = 1200;
+    let w = img.width, h = img.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    callback(canvas.toDataURL('image/jpeg', 0.75));
+  };
+  img.src = dataUrl;
+}
+
+// ══════════════════════════════════════
+// VALIDATION HELPERS
+// ══════════════════════════════════════
+function checkBalance() {
+  const qty = parseInt(document.getElementById('pu_qty').value) || 0;
+  // Just a soft warning — pickup can exceed current balance (boss approves)
+}
+
+function checkInstallQty() {
+  const qty = parseInt(document.getElementById('in_qty').value) || 0;
+  const warn = document.getElementById('in_bal_warn');
+  if (qty > balance && balance > 0) {
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function showErr(id) { document.getElementById(id).classList.add('show'); }
+function hideErr(id) { document.getElementById(id).classList.remove('show'); }
+
+// ══════════════════════════════════════
+// SUBMIT FUNCTIONS
+// ══════════════════════════════════════
+async function submitPickup() {
+  let valid = true;
+  const qty = parseInt(document.getElementById('pu_qty').value);
+  if (!qty || qty < 1) { showErr('pu_qty_err'); valid = false; } else hideErr('pu_qty_err');
+  if (!photos.pu) { showErr('pu_photo_err'); valid = false; } else hideErr('pu_photo_err');
+  if (!valid) { showToast('Please fill all required fields'); return; }
+
+  const payload = {
+    action: 'submitSubconForm',
+    subconCode: SUBCON_CODE,
+    subconName: SUBCON_NAME,
+    formType: 'pickup',
+    qty: qty,
+    date: document.getElementById('pu_date').value,
+    notes: document.getElementById('pu_notes').value,
+    photoBase64: photos.pu,
+    quotationNo: ''
+  };
+
+  lastSubmission = {
+    type: 'pickup',
+    qty: qty,
+    date: document.getElementById('pu_date').value
+  };
+
+  await sendToAPI(payload, 'pickup');
+}
+
+async function submitInstall() {
+  let valid = true;
+  const quot = document.getElementById('in_quot').value;
+  const qty  = parseInt(document.getElementById('in_qty').value);
+  if (!quot) { showErr('in_quot_err'); valid = false; } else hideErr('in_quot_err');
+  if (!qty || qty < 1) { showErr('in_qty_err'); valid = false; } else hideErr('in_qty_err');
+  if (!photos.in) { showErr('in_photo_err'); valid = false; } else hideErr('in_photo_err');
+  if (!valid) { showToast('Please fill all required fields'); return; }
+
+  // Block if qty exceeds balance
+  if (qty > balance) {
+    showToast(`⚠️ You only have ${balance} rolls. Cannot claim ${qty}.`);
+    return;
+  }
+
+  const payload = {
+    action: 'submitSubconForm',
+    subconCode: SUBCON_CODE,
+    subconName: SUBCON_NAME,
+    formType: 'install',
+    quotationNo: quot,
+    qty: qty,
+    date: document.getElementById('in_date').value,
+    notes: document.getElementById('in_area').value,
+    photoBase64: photos.in
+  };
+
+  lastSubmission = {
+    type: 'install',
+    qty: qty,
+    quot: quot,
+    date: document.getElementById('in_date').value
+  };
+
+  await sendToAPI(payload, 'install');
+}
+
+async function submitReturn() {
+  let valid = true;
+  const qty = parseInt(document.getElementById('re_qty').value);
+  if (!qty || qty < 1) { showErr('re_qty_err'); valid = false; } else hideErr('re_qty_err');
+  if (!photos.re) { showErr('re_photo_err'); valid = false; } else hideErr('re_photo_err');
+  if (!valid) { showToast('Please fill all required fields'); return; }
+
+  const payload = {
+    action: 'submitSubconForm',
+    subconCode: SUBCON_CODE,
+    subconName: SUBCON_NAME,
+    formType: 'return',
+    qty: qty,
+    date: document.getElementById('re_date').value,
+    notes: `Condition: ${document.getElementById('re_cond').value} | Reason: ${document.getElementById('re_reason').value}`,
+    photoBase64: photos.re,
+    quotationNo: ''
+  };
+
+  lastSubmission = {
+    type: 'return',
+    qty: qty,
+    date: document.getElementById('re_date').value
+  };
+
+  await sendToAPI(payload, 'return');
+}
+
+// ══════════════════════════════════════
+// API CALL
+// ══════════════════════════════════════
+async function sendToAPI(payload, type) {
+  showLoading('Sending... / Menghantar...');
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    hideLoading();
+
+    if (data.success) {
+      // Reset photo for this form
+      photos[type === 'pickup' ? 'pu' : type === 'install' ? 'in' : 're'] = null;
+      showSuccess(type);
+    } else {
+      showToast('Error: ' + (data.error || 'Please try again'));
+    }
+  } catch (err) {
+    hideLoading();
+    showToast('No internet / Tiada internet. Please try again.');
+  }
+}
+
+// ══════════════════════════════════════
+// SUCCESS + WHATSAPP
+// ══════════════════════════════════════
+function showSuccess(type) {
+  const icons  = { pickup:'📦', install:'🔧', return:'↩️' };
+  const titles = { pickup:'SUBMITTED!', install:'REPORTED!', return:'RETURNED!' };
+  document.getElementById('successIcon').textContent = icons[type] || '✅';
+  document.getElementById('successTitle').textContent = titles[type] || 'SUBMITTED!';
+
+  let sub = '';
+  if (type === 'pickup') {
+    sub = `${lastSubmission.qty} rolls pickup recorded.\nBoss will review shortly.\n\n${lastSubmission.qty} gulung telah direkodkan.\nBoss akan semak tidak lama lagi.`;
+  } else if (type === 'install') {
+    sub = `${lastSubmission.qty} rolls installed at ${lastSubmission.quot} recorded.\nBoss will review.\n\n${lastSubmission.qty} gulung dipasang di ${lastSubmission.quot} telah direkodkan.`;
+  } else {
+    sub = `${lastSubmission.qty} rolls return recorded.\nBoss will review.\n\n${lastSubmission.qty} gulung telah direkodkan untuk dipulangkan.`;
+  }
+  document.getElementById('successSub').textContent = sub;
+  showScreen('s-success');
+}
+
+function sendWhatsApp() {
+  const typeLabel = {
+    pickup: '📦 PICKUP',
+    install: '🔧 INSTALL REPORT',
+    return: '↩️ RETURN'
+  };
+
+  let msg = '';
+  const t = lastSubmission.type;
+  const d = lastSubmission.date || new Date().toLocaleDateString('en-MY');
+
+  if (t === 'pickup') {
+    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQty: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
+  } else if (t === 'install') {
+    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQuotation: ${lastSubmission.quot}\nQty Installed: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
+  } else {
+    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQty Returned: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
+  }
+
+  const url = `https://wa.me/${BOSS_WA}?text=${encodeURIComponent(msg)}`;
+  window.open(url, '_blank');
+}
+
+// ══════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Sending...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
