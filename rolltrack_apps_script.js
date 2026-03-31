@@ -89,23 +89,26 @@ function doGet(e) {
 // ════════════════════════════════════════════════════════════════
 
 function getConfig() {
-  var sheet = getSheet('Config');
-  if (!sheet) return { warehouse: 0, avgCost: 0, totalStockIn: 0, totalCost: 0 };
+  var sheet = getSheet('Stock');
+  if (!sheet) return { warehouse: 0, avgCost: 0, totalQty: 0, totalCost: 0 };
   var data = sheet.getDataRange().getValues();
   var cfg  = {};
   for (var r = 0; r < data.length; r++) {
     if (data[r][0]) cfg[String(data[r][0])] = Number(data[r][1]) || 0;
   }
   return {
-    warehouse:    cfg.warehouse    || 0,
-    avgCost:      cfg.avgCost      || 0,
-    totalStockIn: cfg.totalStockIn || 0,
-    totalCost:    cfg.totalCost    || 0
+    warehouse:  cfg.warehouse  || 0,
+    avgCost:    cfg.avg_cost   || 0,   // sheet key is avg_cost; returned as avgCost for UI compat
+    totalQty:   cfg.total_qty  || 0,
+    totalCost:  cfg.total_cost || 0
   };
 }
 
+// setConfigKey writes to the Stock sheet.
+// Use the exact key strings stored in column A: 'warehouse', 'avg_cost', 'total_qty', 'total_cost'.
+// Creates the row if it does not exist.
 function setConfigKey(key, value) {
-  var sheet = getSheet('Config');
+  var sheet = getSheet('Stock');
   if (!sheet) return;
   var data = sheet.getDataRange().getValues();
   for (var r = 0; r < data.length; r++) {
@@ -415,21 +418,39 @@ function updateQuotationInstalled(quotationNo, addQty) {
 // ════════════════════════════════════════════════════════════════
 
 function stockIn(p) {
-  var qty  = parseInt(p.qty)        || 0;
+  var qty  = parseInt(p.qty)           || 0;
   var cost = parseFloat(p.costPerRoll) || 0;
   if (qty < 1) return { success: false, error: 'Invalid quantity' };
 
-  var cfg      = getConfig();
-  var newWh    = (cfg.warehouse    || 0) + qty;
-  var newTotal = (cfg.totalStockIn || 0) + qty;
-  var newCost  = (cfg.totalCost    || 0) + (qty * cost);
-  var newAvg   = newTotal > 0 ? newCost / newTotal : 0;
+  // ── 1. Calculate new Stock values ──────────────────────────────
+  var cfg          = getConfig();
+  var newWh        = (cfg.warehouse || 0) + qty;
+  var newTotalQty  = (cfg.totalQty  || 0) + qty;
+  var newTotalCost = (cfg.totalCost || 0) + (qty * cost);
+  var newAvgCost   = newTotalQty > 0 ? newTotalCost / newTotalQty : 0;
 
-  setConfigKey('warehouse',    newWh);
-  setConfigKey('totalStockIn', newTotal);
-  setConfigKey('totalCost',    newCost);
-  setConfigKey('avgCost',      newAvg);
+  // ── 2. Write back to Stock sheet (upserts; creates rows if missing) ──
+  setConfigKey('warehouse',  newWh);
+  setConfigKey('avg_cost',   newAvgCost);
+  setConfigKey('total_qty',  newTotalQty);
+  setConfigKey('total_cost', newTotalCost);
 
+  // ── 3. Append delivery record to StockIn sheet ────────────────
+  var siSheet = getSheet('StockIn');
+  if (siSheet) {
+    siSheet.appendRow([
+      new Date(),
+      p.supplier     || '',
+      p.membraneType || '',
+      p.doNumber     || '',
+      qty,
+      cost,
+      qty * cost,
+      newWh
+    ]);
+  }
+
+  // ── 4. Also append to movement Log ───────────────────────────
   var logSheet = getSheet('Log');
   if (logSheet) {
     logSheet.appendRow([
@@ -438,7 +459,7 @@ function stockIn(p) {
     ]);
   }
 
-  return { success: true, warehouse: newWh, avgCost: newAvg };
+  return { success: true, warehouse: newWh, avgCost: newAvgCost };
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -687,9 +708,49 @@ function markPayment(p) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// SETUP — Run setupPaymentSheets() once in the Script Editor
-// after deploying to create the SubconRates and Payments tabs.
+// SETUP — Run these once from the Script Editor after deploying.
 // ════════════════════════════════════════════════════════════════
+
+// setupStock() — creates/initialises the Stock and StockIn sheets.
+// Run this ONCE if the Stock sheet is empty or missing.
+function setupStock() {
+  var ss = getSpreadsheet();
+
+  // ── Stock sheet (key-value config) ──
+  var stockSh = ss.getSheetByName('Stock');
+  if (!stockSh) {
+    stockSh = ss.insertSheet('Stock');
+    Logger.log('Stock sheet created.');
+  }
+  var stockData = stockSh.getDataRange().getValues();
+  var existing  = {};
+  stockData.forEach(function(row) { if (row[0]) existing[String(row[0])] = true; });
+
+  var requiredKeys = ['warehouse', 'avg_cost', 'total_qty', 'total_cost'];
+  requiredKeys.forEach(function(k) {
+    if (!existing[k]) {
+      stockSh.appendRow([k, 0]);
+      Logger.log('Added Stock row: ' + k);
+    } else {
+      Logger.log('Stock row already exists: ' + k);
+    }
+  });
+
+  // ── StockIn sheet (delivery log) ──
+  var siSh = ss.getSheetByName('StockIn');
+  if (!siSh) {
+    siSh = ss.insertSheet('StockIn');
+    siSh.appendRow([
+      'Timestamp', 'Supplier', 'MembraneType', 'DONumber',
+      'Qty', 'CostPerRoll', 'TotalCost', 'WarehouseAfter'
+    ]);
+    Logger.log('StockIn sheet created.');
+  } else {
+    Logger.log('StockIn sheet already exists — skipping creation.');
+  }
+
+  Logger.log('setupStock() complete.');
+}
 
 function setupPaymentSheets() {
   var ss = getSpreadsheet();
