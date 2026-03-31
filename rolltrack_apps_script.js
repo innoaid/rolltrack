@@ -147,33 +147,28 @@ function getAll() {
 function getSubconBalances() {
   var sheet = getSheet('SubconBalances');
   if (!sheet) return [];
-  var data = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  var result = [];
-  for (var r = 1; r < data.length; r++) {
-    var row = data[r];
-    if (!row[0]) continue;
-    result.push({
-      code:           String(row[0]),
-      name:           String(row[1] || SUBCONS[String(row[0])] || row[0]),
-      totalPickup:    Number(row[2]) || 0,
-      totalInstalled: Number(row[3]) || 0,
-      balance:        Number(row[4]) || 0,
-      lastUpdated:    row[5] instanceof Date ? row[5].toISOString() : String(row[5] || '')
-    });
-  }
-  return result;
+  var rows = sheetToObjects(sheet);
+  return rows.filter(function(r) { return r.SubconCode; }).map(function(r) {
+    return {
+      code:           String(r.SubconCode),
+      name:           String(r.SubconName || SUBCONS[String(r.SubconCode)] || r.SubconCode),
+      totalPickup:    Number(r.TotalPickup) || 0,
+      totalInstalled: Number(r.TotalInstalled) || 0,
+      balance:        Number(r.Balance) || 0,
+      lastUpdated:    String(r.LastUpdated || '')
+    };
+  });
 }
 
 // getSubcon — used by the subcon mobile form to load own data
 function getSubcon(code) {
   var sheet = getSheet('SubconBalances');
   if (!sheet) return { success: false, error: 'SubconBalances sheet not found' };
-  var data = sheet.getDataRange().getValues();
-  // Find the row where column A matches the requested subcon code
-  for (var r = 1; r < data.length; r++) {
-    var row = data[r];
-    if (String(row[0]) !== String(code)) continue;
+  var rows = sheetToObjects(sheet);
+
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.SubconCode).trim() !== String(code).trim()) continue;
 
     // Build active quotations list for the install dropdown
     var quotes  = getQuotations();
@@ -187,11 +182,11 @@ function getSubcon(code) {
 
     return {
       success:        true,
-      code:           String(row[0]),
-      name:           String(row[1] || SUBCONS[code] || code),
-      totalPickup:    Number(row[2]) || 0,
-      totalInstalled: Number(row[3]) || 0,
-      balance:        Number(row[4]) || 0,
+      code:           String(r.SubconCode),
+      name:           String(r.SubconName || SUBCONS[code] || code),
+      totalPickup:    Number(r.TotalPickup) || 0,
+      totalInstalled: Number(r.TotalInstalled) || 0,
+      balance:        Number(r.Balance) || 0,
       quotations:     activeQ
     };
   }

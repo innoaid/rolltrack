@@ -589,7 +589,7 @@ function renderApprovals() {
         <div class="appr-info">
           <div class="appr-name">${s.subconName||s.subconCode} · ${lbls[s.formType]||s.formType}</div>
           <div class="appr-meta">
-            ${s.quotationNo ? `Quotation: <strong>${s.quotationNo}</strong><br>` : ''}
+            ${s.quotationNo && s.quotationNo !== s.subconName && s.quotationNo !== s.subconCode ? `Quotation: <strong>${s.quotationNo}</strong><br>` : ''}
             Date: ${s.date||fmtTs(s.timestamp)} · Submitted: ${fmtTs(s.timestamp)}
             ${s.notes ? `<br>Notes: ${s.notes}` : ''}
           </div>
@@ -947,12 +947,19 @@ function renderRO() {
 const ge   = id => document.getElementById(id);
 const fmtN = n  => n ? Number(n).toLocaleString('en-MY') : '—';
 function fmtTs(ts) {
-  if (!ts) return '—';
+  if (!ts && ts !== 0) return '—';
   try {
-    const d = new Date(ts);
+    let d;
+    if (typeof ts === 'number') {
+      // Google Sheets serial date: days since 1899-12-30
+      d = new Date(Math.round((ts - 25569) * 86400000));
+    } else {
+      d = new Date(ts);
+    }
+    if (isNaN(d.getTime())) return String(ts).substring(0,16) || '—';
     return d.toLocaleDateString('en-MY',{day:'numeric',month:'short'}) + ' ' +
            d.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
-  } catch(e) { return String(ts).substring(0,10); }
+  } catch(e) { return String(ts).substring(0,16) || '—'; }
 }
 function clr(...ids) { ids.forEach(id => { const e=ge(id); if(e) e.value=''; }); }
 function loading(on, txt) {
