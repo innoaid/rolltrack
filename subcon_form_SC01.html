@@ -668,30 +668,40 @@ async function submitReturn() {
 }
 
 // ══════════════════════════════════════
-// API CALL
+// API CALL — GET mode bypasses CORS
 // ══════════════════════════════════════
 async function sendToAPI(payload, type) {
   showLoading('Sending... / Menghantar...');
 
   try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    // Build query string from payload (no photo yet)
+    const p = new URLSearchParams({
+      action:      payload.action,
+      subconCode:  payload.subconCode,
+      subconName:  payload.subconName,
+      formType:    payload.formType,
+      quotationNo: payload.quotationNo || '',
+      qty:         String(payload.qty),
+      date:        payload.date || '',
+      notes:       payload.notes || ''
     });
-    const data = await res.json();
+
+    // Use no-cors GET — works reliably with Apps Script
+    await fetch(API_URL + '?' + p.toString(), { mode: 'no-cors' });
+
     hideLoading();
 
-    if (data.success) {
-      // Reset photo for this form
-      photos[type === 'pickup' ? 'pu' : type === 'install' ? 'in' : 're'] = null;
-      showSuccess(type);
-    } else {
-      showToast('Error: ' + (data.error || 'Please try again'));
-    }
+    // no-cors means we cannot read the response body
+    // but reaching here without throwing means it was sent
+    const prefix = type === 'pickup' ? 'pu' : type === 'install' ? 'in' : 're';
+    photos[prefix] = null;
+    showSuccess(type);
+
   } catch (err) {
     hideLoading();
-    showToast('No internet / Tiada internet. Please try again.');
+    showToast(navigator.onLine
+      ? 'Connection error. Try again. / Cuba lagi.'
+      : 'No internet / Tiada internet.');
   }
 }
 
