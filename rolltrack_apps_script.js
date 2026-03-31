@@ -1,0 +1,730 @@
+// ════════════════════════════════════════════════════════════════
+// RollTrack Pro — Google Apps Script
+// Innovation AID Sdn Bhd
+// ════════════════════════════════════════════════════════════════
+
+var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
+
+// ── Helpers ──────────────────────────────────────────────────────
+function getSpreadsheet() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
+function getSheet(name)   { return getSpreadsheet().getSheetByName(name); }
+
+function sheetToObjects(sheet) {
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var result  = [];
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row[0] && !row[1]) continue; // skip completely empty rows
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var v = row[c];
+      obj[headers[c]] = v instanceof Date ? v.toISOString() : v;
+    }
+    result.push(obj);
+  }
+  return result;
+}
+
+function nowStr() {
+  return Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', "yyyy-MM-dd'T'HH:mm:ss");
+}
+
+// ── doGet ────────────────────────────────────────────────────────
+function doGet(e) {
+  var p  = e ? (e.parameter || {}) : {};
+  var cb = p.callback || '';
+  var result;
+  try {
+    switch (p.action) {
+      case 'getAll':
+        result = getAll();
+        break;
+      case 'getSubcon':
+        result = getSubcon(p.code);
+        break;
+      case 'submitSubconForm':
+        result = submitSubconForm(p);
+        break;
+      case 'approveSubmission':
+        result = approveSubmission(p.submissionId);
+        break;
+      case 'rejectSubmission':
+        result = rejectSubmission(p.submissionId, p.reason);
+        break;
+      case 'stockIn':
+        result = stockIn(p);
+        break;
+      case 'addQuotation':
+        result = addQuotation(p);
+        break;
+      case 'getPayments':
+        result = getPayments(p.subconCode);
+        break;
+      case 'getSubconRates':
+        result = getSubconRates();
+        break;
+      case 'calculatePayment':
+        result = calculatePayment(p.subconCode, p.quotationNo, Number(p.rollsInstalled) || 0);
+        break;
+      case 'markPayment':
+        result = markPayment(p);
+        break;
+      default:
+        result = { success: false, error: 'Unknown action: ' + (p.action || '(none)') };
+    }
+  } catch (err) {
+    result = { success: false, error: err.message || String(err) };
+  }
+  var json = JSON.stringify(result);
+  var out  = cb ? cb + '(' + json + ')' : json;
+  return ContentService.createTextOutput(out)
+    .setMimeType(cb ? ContentService.MimeType.JAVASCRIPT : ContentService.MimeType.JSON);
+}
+
+// ════════════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════════════
+
+function getConfig() {
+  var sheet = getSheet('Config');
+  if (!sheet) return { warehouse: 0, avgCost: 0, totalStockIn: 0, totalCost: 0 };
+  var data = sheet.getDataRange().getValues();
+  var cfg  = {};
+  for (var r = 0; r < data.length; r++) {
+    if (data[r][0]) cfg[String(data[r][0])] = Number(data[r][1]) || 0;
+  }
+  return {
+    warehouse:    cfg.warehouse    || 0,
+    avgCost:      cfg.avgCost      || 0,
+    totalStockIn: cfg.totalStockIn || 0,
+    totalCost:    cfg.totalCost    || 0
+  };
+}
+
+function setConfigKey(key, value) {
+  var sheet = getSheet('Config');
+  if (!sheet) return;
+  var data = sheet.getDataRange().getValues();
+  for (var r = 0; r < data.length; r++) {
+    if (String(data[r][0]) === String(key)) {
+      sheet.getRange(r + 1, 2).setValue(value);
+      return;
+    }
+  }
+  sheet.appendRow([key, value]);
+}
+
+// ════════════════════════════════════════════════════════════════
+// getAll — main data load for admin dashboard
+// ════════════════════════════════════════════════════════════════
+
+function getAll() {
+  return {
+    success:            true,
+    stock:              getConfig(),
+    subconBalances:     getSubconBalances(),
+    pendingSubmissions: getPendingSubmissions(),
+    quotations:         getQuotations(),
+    recentLog:          getRecentLog(100)
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUBCONS
+// ════════════════════════════════════════════════════════════════
+
+function getSubconBalances() {
+  var subSheet = getSheet('Subcons');
+  if (!subSheet) return [];
+  var subData    = subSheet.getDataRange().getValues();
+  var subHeaders = subData[0];
+  var codeIdx    = subHeaders.indexOf('SubconCode');
+  var nameIdx    = subHeaders.indexOf('SubconName');
+
+  var logSheet   = getSheet('Log');
+  var logData    = logSheet ? logSheet.getDataRange().getValues() : [[]];
+  var logHeaders = logData[0] || [];
+  var lTypeIdx   = logHeaders.indexOf('Type');
+  var lCodeIdx   = logHeaders.indexOf('SubconCode');
+  var lQtyIdx    = logHeaders.indexOf('Qty');
+
+  var result = [];
+  for (var r = 1; r < subData.length; r++) {
+    var code = subData[r][codeIdx];
+    var name = subData[r][nameIdx];
+    if (!code) continue;
+
+    var totalPickup    = 0;
+    var totalInstalled = 0;
+    var totalReturned  = 0;
+
+    for (var lr = 1; lr < logData.length; lr++) {
+      var lRow = logData[lr];
+      if (String(lRow[lCodeIdx]) !== String(code)) continue;
+      var t = String(lRow[lTypeIdx]);
+      var q = Number(lRow[lQtyIdx]) || 0;
+      if (t === 'pickup')                       totalPickup    += q;
+      if (t === 'install')                      totalInstalled += q;
+      if (t === 'return' || t === 'returned')   totalReturned  += q;
+    }
+
+    result.push({
+      code:           code,
+      name:           name,
+      balance:        totalPickup - totalInstalled - totalReturned,
+      totalPickup:    totalPickup,
+      totalInstalled: totalInstalled,
+      totalReturned:  totalReturned
+    });
+  }
+  return result;
+}
+
+// getSubcon — used by subcon form to load own data
+function getSubcon(code) {
+  var balances = getSubconBalances();
+  var sub = null;
+  for (var i = 0; i < balances.length; i++) {
+    if (String(balances[i].code) === String(code)) { sub = balances[i]; break; }
+  }
+  if (!sub) return { success: false, error: 'Subcon not found: ' + code };
+
+  // Active quotations for the install dropdown
+  var quotes = getQuotations();
+  var activeQ = [];
+  for (var q = 0; q < quotes.length; q++) {
+    var qt = quotes[q];
+    if (qt.status === 'active' || qt.status === 'upcoming') {
+      activeQ.push({ no: qt.quotationNo, project: qt.projectName || qt.clientName || qt.quotationNo });
+    }
+  }
+
+  return {
+    success:        true,
+    code:           sub.code,
+    name:           sub.name,
+    balance:        sub.balance,
+    totalPickup:    sub.totalPickup,
+    totalInstalled: sub.totalInstalled,
+    quotations:     activeQ
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SUBMISSIONS
+// ════════════════════════════════════════════════════════════════
+
+function getPendingSubmissions() {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return [];
+  var data    = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers   = data[0];
+  var statusIdx = headers.indexOf('Status');
+  var result    = [];
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][statusIdx]) !== 'pending') continue;
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var v = data[r][c];
+      obj[headers[c].charAt(0).toLowerCase() + headers[c].slice(1)] =
+        v instanceof Date ? v.toISOString() : v;
+    }
+    result.push(obj);
+  }
+  return result;
+}
+
+function submitSubconForm(p) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+
+  var subId = 'SUB-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss') +
+              '-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+
+  sheet.appendRow([
+    subId,
+    new Date(),
+    p.formType    || '',
+    p.subconCode  || '',
+    p.subconName  || '',
+    p.quotationNo || '',
+    Number(p.qty) || 0,
+    p.date        || '',
+    p.notes       || '',
+    'pending',
+    ''  // RejectionReason
+  ]);
+
+  return { success: true, submissionId: subId };
+}
+
+function approveSubmission(submissionId) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idx     = {};
+  headers.forEach(function(h, i) { idx[h] = i; });
+
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (String(row[idx['ID']]) !== String(submissionId)) continue;
+    if (String(row[idx['Status']]) !== 'pending') {
+      return { success: false, error: 'Submission already processed' };
+    }
+
+    var formType   = String(row[idx['FormType']]);
+    var qty        = Number(row[idx['Qty']]) || 0;
+    var subconCode = row[idx['SubconCode']];
+    var subconName = row[idx['SubconName']];
+    var quotNo     = row[idx['QuotationNo']];
+    var notes      = row[idx['Notes']] || '';
+
+    // Update warehouse stock
+    var cfg = getConfig();
+    if (formType === 'pickup') {
+      setConfigKey('warehouse', Math.max(0, (cfg.warehouse || 0) - qty));
+    } else if (formType === 'return' || formType === 'returned') {
+      setConfigKey('warehouse', (cfg.warehouse || 0) + qty);
+    }
+
+    // Update quotation installed count; auto-create payment record on install approval
+    if (formType === 'install' && quotNo) {
+      var newTotal = updateQuotationInstalled(quotNo, qty);
+      createPaymentRecord(quotNo, subconCode, newTotal);
+    }
+
+    // Mark submission as approved
+    sheet.getRange(r + 1, idx['Status'] + 1).setValue('approved');
+
+    // Log movement
+    addLog({ type: formType, subconCode: subconCode, subconName: subconName,
+             quotationNo: quotNo, qty: qty, notes: notes });
+
+    return { success: true };
+  }
+  return { success: false, error: 'Submission not found: ' + submissionId };
+}
+
+function rejectSubmission(submissionId, reason) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idx     = {};
+  headers.forEach(function(h, i) { idx[h] = i; });
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idx['ID']]) !== String(submissionId)) continue;
+    sheet.getRange(r + 1, idx['Status'] + 1).setValue('rejected');
+    if (idx['RejectionReason'] !== undefined) {
+      sheet.getRange(r + 1, idx['RejectionReason'] + 1).setValue(reason || 'Rejected');
+    }
+    return { success: true };
+  }
+  return { success: false, error: 'Submission not found: ' + submissionId };
+}
+
+// ════════════════════════════════════════════════════════════════
+// QUOTATIONS
+// ════════════════════════════════════════════════════════════════
+
+function getQuotations() {
+  var sheet = getSheet('Quotations');
+  if (!sheet) return [];
+  var data    = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var result  = [];
+  for (var r = 1; r < data.length; r++) {
+    if (!data[r][0]) continue;
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var v = data[r][c];
+      obj[headers[c].charAt(0).toLowerCase() + headers[c].slice(1)] =
+        v instanceof Date ? v.toISOString() : v;
+    }
+    result.push(obj);
+  }
+  return result;
+}
+
+function addQuotation(p) {
+  var sheet  = getSheet('Quotations');
+  if (!sheet) return { success: false, error: 'Quotations sheet not found' };
+  var quotNo = p.quotationNo || '';
+  if (!quotNo) return { success: false, error: 'Quotation number required' };
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var qIdx    = headers.indexOf('QuotationNo');
+  var iIdx    = headers.indexOf('RollsInstalled');
+
+  var row = [
+    quotNo,
+    p.date         || Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd'),
+    p.clientName   || '',
+    p.projectName  || '',
+    p.membraneType || '',
+    parseFloat(p.ratePerSqft)   || 0,
+    parseFloat(p.totalSqft)     || 0,
+    Math.ceil((parseFloat(p.totalSqft) || 0) / 80),
+    parseFloat(p.membraneValue) || 0,
+    parseFloat(p.totalValue)    || 0,
+    p.status || 'active',
+    0  // RollsInstalled placeholder (preserved on update)
+  ];
+
+  for (var r = 1; r < data.length; r++) {
+    if (data[r][qIdx] === quotNo) {
+      if (iIdx >= 0) row[11] = Number(data[r][iIdx]) || 0; // preserve installed count
+      sheet.getRange(r + 1, 1, 1, row.length).setValues([row]);
+      return { success: true, updated: true };
+    }
+  }
+
+  sheet.appendRow(row);
+  return { success: true, created: true };
+}
+
+function updateQuotationInstalled(quotationNo, addQty) {
+  var sheet = getSheet('Quotations');
+  if (!sheet) return 0;
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var qIdx    = headers.indexOf('QuotationNo');
+  var iIdx    = headers.indexOf('RollsInstalled');
+  if (iIdx < 0) return 0;
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][qIdx]) === String(quotationNo)) {
+      var newTotal = (Number(data[r][iIdx]) || 0) + addQty;
+      sheet.getRange(r + 1, iIdx + 1).setValue(newTotal);
+      return newTotal;
+    }
+  }
+  return 0;
+}
+
+// ════════════════════════════════════════════════════════════════
+// STOCK IN
+// ════════════════════════════════════════════════════════════════
+
+function stockIn(p) {
+  var qty  = parseInt(p.qty)        || 0;
+  var cost = parseFloat(p.costPerRoll) || 0;
+  if (qty < 1) return { success: false, error: 'Invalid quantity' };
+
+  var cfg      = getConfig();
+  var newWh    = (cfg.warehouse    || 0) + qty;
+  var newTotal = (cfg.totalStockIn || 0) + qty;
+  var newCost  = (cfg.totalCost    || 0) + (qty * cost);
+  var newAvg   = newTotal > 0 ? newCost / newTotal : 0;
+
+  setConfigKey('warehouse',    newWh);
+  setConfigKey('totalStockIn', newTotal);
+  setConfigKey('totalCost',    newCost);
+  setConfigKey('avgCost',      newAvg);
+
+  var logSheet = getSheet('Log');
+  if (logSheet) {
+    logSheet.appendRow([
+      new Date(), 'in', '', p.supplier || '',
+      p.doNumber || '', qty, p.membraneType || '', cost
+    ]);
+  }
+
+  return { success: true, warehouse: newWh, avgCost: newAvg };
+}
+
+// ════════════════════════════════════════════════════════════════
+// LOG
+// ════════════════════════════════════════════════════════════════
+
+function getRecentLog(limit) {
+  var sheet = getSheet('Log');
+  if (!sheet) return [];
+  var data    = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var result  = [];
+  for (var r = data.length - 1; r >= 1; r--) {
+    if (!data[r][0]) continue;
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) {
+      var v = data[r][c];
+      obj[headers[c].charAt(0).toLowerCase() + headers[c].slice(1)] =
+        v instanceof Date ? v.toISOString() : v;
+    }
+    result.push(obj);
+    if (limit && result.length >= limit) break;
+  }
+  return result;
+}
+
+function addLog(entry) {
+  var sheet = getSheet('Log');
+  if (!sheet) return;
+  sheet.appendRow([
+    new Date(),
+    entry.type        || '',
+    entry.subconCode  || '',
+    entry.subconName  || '',
+    entry.quotationNo || '',
+    entry.qty         || 0,
+    entry.notes       || '',
+    entry.costPerRoll || 0
+  ]);
+}
+
+// ════════════════════════════════════════════════════════════════
+// PAYMENT FUNCTIONS
+// ════════════════════════════════════════════════════════════════
+
+// ── calculateTieredRate ──────────────────────────────────────────
+// Returns rate per roll, total, payment1 (50%), payment2 (50%)
+// Applies flat tier based on total rolls (not accumulative)
+function calculateTieredRate(subconCode, rollsInstalled) {
+  var sheet = getSheet('SubconRates');
+  if (!sheet) return { success: false, error: 'SubconRates sheet not found. Run setupPaymentSheets() first.' };
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idx     = {};
+  headers.forEach(function(h, i) { idx[h] = i; });
+
+  var rolls = Number(rollsInstalled) || 0;
+
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (String(row[idx['SubconCode']]) !== String(subconCode)) continue;
+
+    var t1Max  = Number(row[idx['Tier1MaxRolls']]) || 4;
+    var t1Rate = Number(row[idx['Tier1Rate']])     || 190;
+    var t2Min  = Number(row[idx['Tier2MinRolls']]) || 5;
+    var t2Max  = Number(row[idx['Tier2MaxRolls']]) || 9;
+    var t2Rate = Number(row[idx['Tier2Rate']])     || 170;
+    var t3Min  = Number(row[idx['Tier3MinRolls']]) || 10;
+    var t3Rate = Number(row[idx['Tier3Rate']])     || 150;
+
+    var rate;
+    if (rolls <= t1Max)                         { rate = t1Rate; }
+    else if (rolls >= t2Min && rolls <= t2Max)  { rate = t2Rate; }
+    else if (rolls >= t3Min)                    { rate = t3Rate; }
+    else                                        { rate = t1Rate; }
+
+    var total = rolls * rate;
+    return { success: true, rate: rate, total: total, payment1: total * 0.5, payment2: total * 0.5 };
+  }
+
+  return { success: false, error: 'Subcon not found in rates: ' + subconCode };
+}
+
+// ── getSubconRates ────────────────────────────────────────────────
+function getSubconRates() {
+  var sheet = getSheet('SubconRates');
+  if (!sheet) return { success: false, error: 'SubconRates sheet not found' };
+  return { success: true, rates: sheetToObjects(sheet) };
+}
+
+// ── getPayments ───────────────────────────────────────────────────
+function getPayments(subconCode) {
+  var sheet = getSheet('Payments');
+  if (!sheet) return { success: false, error: 'Payments sheet not found' };
+
+  var all = sheetToObjects(sheet);
+  var payments = subconCode
+    ? all.filter(function(p) { return String(p['SubconCode']) === String(subconCode); })
+    : all;
+
+  // Enrich with project/client name from Quotations
+  var qtList = getQuotations();
+  var qtMap  = {};
+  qtList.forEach(function(q) { qtMap[q.quotationNo] = q; });
+
+  payments.forEach(function(pay) {
+    var q = qtMap[pay['QuotationNo']];
+    if (q) {
+      pay.projectName = q.projectName || '';
+      pay.clientName  = q.clientName  || '';
+    }
+  });
+
+  return { success: true, payments: payments };
+}
+
+// ── calculatePayment ──────────────────────────────────────────────
+function calculatePayment(subconCode, quotationNo, rollsInstalled) {
+  var calc = calculateTieredRate(subconCode, rollsInstalled);
+  if (!calc.success) return calc;
+  return {
+    success:        true,
+    subconCode:     subconCode,
+    quotationNo:    quotationNo,
+    rollsInstalled: rollsInstalled,
+    rate:           calc.rate,
+    total:          calc.total,
+    payment1:       calc.payment1,
+    payment2:       calc.payment2
+  };
+}
+
+// ── createPaymentRecord ───────────────────────────────────────────
+// Called automatically when an install submission is approved.
+// Creates one payment record per quotation. Skips if already exists.
+function createPaymentRecord(quotationNo, subconCode, rollsInstalled) {
+  var sheet = getSheet('Payments');
+  if (!sheet) return { success: false, error: 'Payments sheet not found' };
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var qIdx    = headers.indexOf('QuotationNo');
+
+  // Skip if record already exists for this quotation
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][qIdx]) === String(quotationNo)) {
+      return { success: true, message: 'Record already exists', paymentID: data[r][0] };
+    }
+  }
+
+  var calc = calculateTieredRate(subconCode, rollsInstalled);
+  if (!calc.success) return calc;
+
+  // Resolve subcon name
+  var subconName = subconCode;
+  var subSheet   = getSheet('Subcons');
+  if (subSheet) {
+    var subData    = subSheet.getDataRange().getValues();
+    var sHeaders   = subData[0];
+    var scIdx      = sHeaders.indexOf('SubconCode');
+    var snIdx      = sHeaders.indexOf('SubconName');
+    for (var s = 1; s < subData.length; s++) {
+      if (String(subData[s][scIdx]) === String(subconCode)) {
+        subconName = subData[s][snIdx];
+        break;
+      }
+    }
+  }
+
+  var paymentID = 'PAY-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss');
+
+  sheet.appendRow([
+    paymentID,        // PaymentID
+    quotationNo,      // QuotationNo
+    subconCode,       // SubconCode
+    subconName,       // SubconName
+    rollsInstalled,   // RollsInstalled
+    calc.rate,        // RateApplied
+    calc.total,       // TotalAmount
+    calc.payment1,    // Payment1Amount
+    'unpaid',         // Payment1Status
+    '',               // Payment1Date
+    '',               // Payment1Reference
+    calc.payment2,    // Payment2Amount
+    'unpaid',         // Payment2Status
+    '',               // Payment2Date
+    '',               // Payment2Reference
+    nowStr()          // CreatedAt
+  ]);
+
+  return {
+    success:   true,
+    paymentID: paymentID,
+    rate:      calc.rate,
+    total:     calc.total,
+    payment1:  calc.payment1,
+    payment2:  calc.payment2
+  };
+}
+
+// ── markPayment ───────────────────────────────────────────────────
+// Updates Payment 1 or Payment 2 fields. Status values: unpaid, paid, partial
+function markPayment(p) {
+  var paymentID     = p.paymentID;
+  var paymentNumber = String(p.paymentNumber);
+  var status        = p.status    || 'paid';
+  var date          = p.date      || '';
+  var reference     = p.reference || '';
+
+  if (!paymentID || !paymentNumber) {
+    return { success: false, error: 'Missing paymentID or paymentNumber' };
+  }
+
+  var sheet = getSheet('Payments');
+  if (!sheet) return { success: false, error: 'Payments sheet not found' };
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var pidIdx  = headers.indexOf('PaymentID');
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][pidIdx]) !== String(paymentID)) continue;
+
+    if (paymentNumber === '1') {
+      var s1 = headers.indexOf('Payment1Status');
+      var d1 = headers.indexOf('Payment1Date');
+      var r1 = headers.indexOf('Payment1Reference');
+      if (s1 >= 0) sheet.getRange(r + 1, s1 + 1).setValue(status);
+      if (d1 >= 0) sheet.getRange(r + 1, d1 + 1).setValue(date);
+      if (r1 >= 0) sheet.getRange(r + 1, r1 + 1).setValue(reference);
+    } else if (paymentNumber === '2') {
+      var s2 = headers.indexOf('Payment2Status');
+      var d2 = headers.indexOf('Payment2Date');
+      var r2 = headers.indexOf('Payment2Reference');
+      if (s2 >= 0) sheet.getRange(r + 1, s2 + 1).setValue(status);
+      if (d2 >= 0) sheet.getRange(r + 1, d2 + 1).setValue(date);
+      if (r2 >= 0) sheet.getRange(r + 1, r2 + 1).setValue(reference);
+    }
+
+    return { success: true };
+  }
+
+  return { success: false, error: 'Payment record not found: ' + paymentID };
+}
+
+// ════════════════════════════════════════════════════════════════
+// SETUP — Run setupPaymentSheets() once in the Script Editor
+// after deploying to create the SubconRates and Payments tabs.
+// ════════════════════════════════════════════════════════════════
+
+function setupPaymentSheets() {
+  var ss = getSpreadsheet();
+
+  // ── SubconRates ──
+  var rateSh = ss.getSheetByName('SubconRates');
+  if (!rateSh) {
+    rateSh = ss.insertSheet('SubconRates');
+    rateSh.appendRow([
+      'SubconCode','SubconName',
+      'Tier1MaxRolls','Tier1Rate',
+      'Tier2MinRolls','Tier2MaxRolls','Tier2Rate',
+      'Tier3MinRolls','Tier3Rate'
+    ]);
+    rateSh.appendRow(['SC01','Team Atik', 4, 190, 5, 9, 170, 10, 150]);
+    Logger.log('SubconRates sheet created with SC01 data.');
+  } else {
+    Logger.log('SubconRates sheet already exists — skipping creation.');
+  }
+
+  // ── Payments ──
+  var paySh = ss.getSheetByName('Payments');
+  if (!paySh) {
+    paySh = ss.insertSheet('Payments');
+    paySh.appendRow([
+      'PaymentID','QuotationNo','SubconCode','SubconName',
+      'RollsInstalled','RateApplied','TotalAmount',
+      'Payment1Amount','Payment1Status','Payment1Date','Payment1Reference',
+      'Payment2Amount','Payment2Status','Payment2Date','Payment2Reference',
+      'CreatedAt'
+    ]);
+    Logger.log('Payments sheet created.');
+  } else {
+    Logger.log('Payments sheet already exists — skipping creation.');
+  }
+
+  Logger.log('Setup complete. Redeploy the web app to activate the new endpoints.');
+}

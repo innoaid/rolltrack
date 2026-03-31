@@ -210,6 +210,32 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .empty-i{font-size:28px;margin-bottom:6px}
 .divider{height:1px;background:var(--border);margin:12px 0}
 .mono{font-family:'JetBrains Mono',monospace}
+
+/* ── PAYMENT CARDS ── */
+.pay-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;animation:fu .22s ease}
+.pay-hdr{padding:11px 13px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.pay-proj{flex:1;min-width:0}
+.pay-qno{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:.3px}
+.pay-pname{font-size:11px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pay-meta{padding:8px 13px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border);line-height:1.7}
+.pay-meta strong{color:var(--ink);font-weight:800}
+.pay-row{padding:9px 13px;display:flex;align-items:center;justify-content:space-between;gap:8px;border-bottom:1px solid var(--border)}
+.pay-row:last-child{border-bottom:none}
+.pay-row-info{flex:1;min-width:0}
+.pay-row-lbl{font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;display:block;margin-bottom:3px}
+.pay-row-amt{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;margin-right:5px}
+.pay-ref{font-size:10px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pay-badge{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;display:inline-flex;align-items:center}
+.pay-badge-paid{background:var(--green-l);color:var(--green)}
+.pay-badge-unpaid{background:var(--red-l);color:var(--red)}
+.pay-badge-partial{background:var(--gold-l);color:var(--gold)}
+.pay-badge-nd{background:var(--s3);color:var(--muted)}
+.pay-sum{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px;margin-bottom:11px}
+.pay-sum-row{display:grid;grid-template-columns:repeat(3,1fr)}
+.pay-sum-item{text-align:center;padding:4px 0}
+.pay-sum-item+.pay-sum-item{border-left:1px solid var(--border)}
+.pay-sum-n{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;line-height:1.2;color:var(--ink)}
+.pay-sum-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;font-weight:700}
 </style>
 </head>
 <body>
@@ -236,6 +262,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <button class="tab"     onclick="gT('stockin',this)">Stock In</button>
   <button class="tab"     onclick="gT('subcons',this)">Subcons</button>
   <button class="tab"     onclick="gT('quotations',this)">Projects</button>
+  <button class="tab"     onclick="gT('payments',this)">Payments</button>
   <button class="tab"     onclick="gT('reorder',this)">Reorder</button>
   <button class="tab"     onclick="gT('log',this)">Log</button>
 </div>
@@ -299,6 +326,26 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div id="qtList"></div>
 </div>
 
+<!-- ═══ PAYMENTS ═══ -->
+<div class="pg" id="pg-payments">
+  <div class="sh" style="margin-top:8px"><h2>Subcon Payments</h2><span class="tag tgd">SC01</span></div>
+  <div class="pay-sum" id="pay-summary">
+    <div class="pay-sum-row">
+      <div class="pay-sum-item"><div class="pay-sum-n">—</div><div class="pay-sum-l">Total Owed</div></div>
+      <div class="pay-sum-item"><div class="pay-sum-n" style="color:var(--green)">—</div><div class="pay-sum-l">Paid</div></div>
+      <div class="pay-sum-item"><div class="pay-sum-n" style="color:var(--red)">—</div><div class="pay-sum-l">Outstanding</div></div>
+    </div>
+  </div>
+  <div class="chips" id="pay-chips">
+    <div class="chip on" onclick="filterPayments('all',this)">All</div>
+    <div class="chip" onclick="filterPayments('unpaid',this)">Unpaid</div>
+    <div class="chip" onclick="filterPayments('partial',this)">Partial</div>
+    <div class="chip" onclick="filterPayments('paid',this)">Paid</div>
+  </div>
+  <button class="btn btn-b" style="margin-bottom:11px" onclick="generateReport()">📄 &nbsp;Generate SC01 Report</button>
+  <div id="payList"></div>
+</div>
+
 <!-- ═══ REORDER ═══ -->
 <div class="pg" id="pg-reorder">
   <div class="sh" style="margin-top:8px"><h2>Reorder Planner</h2><span class="tag tb">Smart</span></div>
@@ -356,6 +403,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
 </div>
 
+<!-- PAY MODAL -->
+<div class="ov" id="payOv">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt" id="payMtitle">Mark as Paid</div>
+    <div class="fg"><label>Date Paid</label><input type="date" id="pay_date"></div>
+    <div class="fg"><label>Payment Reference</label><input type="text" id="pay_ref" placeholder="e.g. TT-20260401-001"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closePayModal()">Cancel</button>
+      <button class="btn btn-g" style="flex:2" onclick="submitMarkPaid()">✅ &nbsp;Confirm Paid</button>
+    </div>
+  </div>
+</div>
+
 <!-- REJECT MODAL -->
 <div class="ov" id="rejOv">
   <div class="modal">
@@ -385,6 +446,9 @@ let sups  = JSON.parse(localStorage.getItem('rt_sups')||'[]');
 let logF  = 'all';
 let editQtId    = null;
 let rejectingId = null;
+let payData     = [];
+let payFilter   = 'all';
+let payingRecord = null;
 
 // ══════════════════════════════════════
 // JSONP
@@ -444,6 +508,7 @@ function gT(name, el) {
   document.getElementById('pg-' + name).classList.add('on');
   el.classList.add('on');
   render();
+  if (name === 'payments') loadPayments();
 }
 
 // ══════════════════════════════════════
@@ -457,6 +522,7 @@ function render() {
   renderQuotations();
   renderLog();
   renderRO();
+  renderPayments();
   // Update si warehouse
   const siWh = document.getElementById('si_wh_cur');
   if (siWh) siWh.textContent = (D.stock.warehouse||0) + ' rolls';
@@ -898,6 +964,292 @@ function toast(msg) {
   t.textContent = msg;
   t.classList.add('on');
   setTimeout(() => t.classList.remove('on'), 2800);
+}
+
+// ══════════════════════════════════════
+// PAYMENTS
+// ══════════════════════════════════════
+async function loadPayments() {
+  loading(true, 'Loading payments...');
+  try {
+    const res = await jsonp({ action:'getPayments' });
+    loading(false);
+    if (res.success) {
+      payData = res.payments || [];
+      renderPayments();
+    } else {
+      toast('Payments error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
+}
+
+function payOverallStatus(p) {
+  const s1 = p['Payment1Status'] || 'unpaid';
+  const s2 = p['Payment2Status'] || 'unpaid';
+  if (s1 === 'paid' && s2 === 'paid') return 'paid';
+  if (s1 === 'paid') return 'partial';
+  return 'unpaid';
+}
+
+function filterPayments(f, el) {
+  payFilter = f;
+  document.querySelectorAll('#pay-chips .chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  renderPayments();
+}
+
+function renderPayments() {
+  const pgEl = ge('pg-payments');
+  if (!pgEl) return;
+
+  // Summary
+  const sumEl = ge('pay-summary');
+  if (sumEl) {
+    let totalOwed = 0, totalPaid = 0;
+    payData.forEach(p => {
+      totalOwed += Number(p['TotalAmount']  || 0);
+      if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
+      if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
+    });
+    const outstanding = totalOwed - totalPaid;
+    sumEl.innerHTML = `<div class="pay-sum-row">
+      <div class="pay-sum-item">
+        <div class="pay-sum-n">RM ${fmtN(totalOwed)}</div>
+        <div class="pay-sum-l">Total Owed (SC01)</div>
+      </div>
+      <div class="pay-sum-item">
+        <div class="pay-sum-n" style="color:var(--green)">RM ${fmtN(totalPaid)}</div>
+        <div class="pay-sum-l">Paid</div>
+      </div>
+      <div class="pay-sum-item">
+        <div class="pay-sum-n" style="color:${outstanding > 0 ? 'var(--red)' : 'var(--green)'}">RM ${fmtN(outstanding)}</div>
+        <div class="pay-sum-l">Outstanding</div>
+      </div>
+    </div>`;
+  }
+
+  const listEl = ge('payList');
+  if (!listEl) return;
+
+  const filtered = payFilter === 'all'
+    ? payData
+    : payData.filter(p => payOverallStatus(p) === payFilter);
+
+  if (!filtered.length) {
+    listEl.innerHTML = `<div class="empty"><div class="empty-i">💰</div><p>${payData.length ? 'No payments match this filter' : 'No payment records yet'}</p></div>`;
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(p => {
+    const pid   = p['PaymentID']     || '';
+    const qno   = p['QuotationNo']   || '';
+    const proj  = p.projectName || p.clientName || '—';
+    const rolls = Number(p['RollsInstalled'] || 0);
+    const rate  = Number(p['RateApplied']    || 0);
+    const total = Number(p['TotalAmount']    || 0);
+    const p1amt = Number(p['Payment1Amount'] || 0);
+    const p1st  = p['Payment1Status']    || 'unpaid';
+    const p1dt  = p['Payment1Date']      || '';
+    const p1ref = p['Payment1Reference'] || '';
+    const p2amt = Number(p['Payment2Amount'] || 0);
+    const p2st  = p['Payment2Status']    || 'unpaid';
+    const p2dt  = p['Payment2Date']      || '';
+    const p2ref = p['Payment2Reference'] || '';
+
+    const overall      = payOverallStatus(p);
+    const badgeCls     = { paid:'pay-badge-paid', partial:'pay-badge-partial', unpaid:'pay-badge-unpaid' };
+    const overallBadge = badgeCls[overall] || 'pay-badge-unpaid';
+
+    // P2 due date = 14 days after P1 paid date
+    let p2DueStr = '';
+    if (p1st === 'paid' && p1dt) {
+      try {
+        const d = new Date(p1dt); d.setDate(d.getDate() + 14);
+        p2DueStr = d.toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'});
+      } catch(e) {}
+    }
+
+    const p1Badge = `<span class="pay-badge ${p1st === 'paid' ? 'pay-badge-paid' : 'pay-badge-unpaid'}">${p1st}</span>`;
+    const p2Badge = p2st === 'paid'
+      ? `<span class="pay-badge pay-badge-paid">paid</span>`
+      : p1st !== 'paid'
+        ? `<span class="pay-badge pay-badge-nd">not due yet</span>`
+        : `<span class="pay-badge pay-badge-unpaid">unpaid</span>`;
+
+    const p1Info = p1st === 'paid' && (p1dt || p1ref)
+      ? `<div class="pay-ref">${fmtDate(p1dt)} · ${p1ref || '—'}</div>` : '';
+    const p2Info = p2st === 'paid' && (p2dt || p2ref)
+      ? `<div class="pay-ref">${fmtDate(p2dt)} · ${p2ref || '—'}</div>`
+      : (p2DueStr ? `<div class="pay-ref">Due: ${p2DueStr}</div>` : '');
+
+    const p1Btn = p1st !== 'paid'
+      ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',1)">Mark Paid</button>` : '';
+    const p2Btn = p1st === 'paid' && p2st !== 'paid'
+      ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',2)">Mark Paid</button>` : '';
+
+    return `<div class="pay-card">
+      <div class="pay-hdr">
+        <div class="pay-proj">
+          <div class="pay-qno">${qno}</div>
+          <div class="pay-pname">${proj}</div>
+        </div>
+        <span class="pay-badge ${overallBadge}">${overall}</span>
+      </div>
+      <div class="pay-meta">
+        ${rolls} rolls &nbsp;·&nbsp; RM ${fmtN(rate)}/roll &nbsp;·&nbsp; Total: <strong>RM ${fmtN(total)}</strong>
+      </div>
+      <div class="pay-row">
+        <div class="pay-row-info">
+          <span class="pay-row-lbl">Payment 1 (50%)</span>
+          <span class="pay-row-amt">RM ${fmtN(p1amt)}</span>${p1Badge}${p1Info}
+        </div>
+        ${p1Btn}
+      </div>
+      <div class="pay-row">
+        <div class="pay-row-info">
+          <span class="pay-row-lbl">Payment 2 (50%)</span>
+          <span class="pay-row-amt">RM ${fmtN(p2amt)}</span>${p2Badge}${p2Info}
+        </div>
+        ${p2Btn}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function fmtDate(d) {
+  if (!d) return '—';
+  try { return new Date(d).toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'}); }
+  catch(e) { return String(d).substring(0,10); }
+}
+
+function openPayModal(paymentID, paymentNumber) {
+  payingRecord = { paymentID, paymentNumber };
+  ge('payMtitle').textContent = `Mark Payment ${paymentNumber} as Paid`;
+  ge('pay_date').value = new Date().toISOString().split('T')[0];
+  ge('pay_ref').value  = '';
+  ge('payOv').classList.add('open');
+}
+function closePayModal() { ge('payOv').classList.remove('open'); payingRecord = null; }
+
+async function submitMarkPaid() {
+  if (!payingRecord) return;
+  const date = ge('pay_date').value;
+  const ref  = ge('pay_ref').value.trim();
+  if (!date) { toast('Select a date'); return; }
+  closePayModal();
+  loading(true, 'Updating...');
+  try {
+    const res = await jsonp({
+      action:        'markPayment',
+      paymentID:     payingRecord.paymentID,
+      paymentNumber: payingRecord.paymentNumber,
+      status:        'paid',
+      date,
+      reference:     ref
+    });
+    loading(false);
+    if (res.success) {
+      toast('✅ Payment marked as paid');
+      await loadPayments();
+    } else {
+      toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
+}
+
+// ── SC01 Report Generator ──────────────────────────────
+function generateReport() {
+  const sc01 = payData.filter(p => (p['SubconCode']||'') === 'SC01');
+  if (!sc01.length) { toast('No SC01 payment records found'); return; }
+
+  let totalOwed = 0, totalPaid = 0;
+  sc01.forEach(p => {
+    totalOwed += Number(p['TotalAmount']  || 0);
+    if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
+    if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
+  });
+  const outstanding = totalOwed - totalPaid;
+  const genDate = new Date().toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const rows = sc01.map(p => {
+    const p1Color = p['Payment1Status'] === 'paid' ? 'color:green' : 'color:#c01818';
+    const p2Color = p['Payment2Status'] === 'paid' ? 'color:green' : 'color:#c01818';
+    return `<tr>
+      <td>${p['QuotationNo']||''}</td>
+      <td>${p.projectName||p.clientName||'—'}</td>
+      <td style="text-align:right">${p['RollsInstalled']||0}</td>
+      <td style="text-align:right">RM ${fmtN(Number(p['RateApplied']||0))}</td>
+      <td style="text-align:right;font-weight:700">RM ${fmtN(Number(p['TotalAmount']||0))}</td>
+      <td style="text-align:center;font-weight:700;${p1Color}">${(p['Payment1Status']||'unpaid').toUpperCase()}</td>
+      <td style="text-align:center;font-weight:700;${p2Color}">${(p['Payment2Status']||'unpaid').toUpperCase()}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SC01 Payment Statement — Innovation AID</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:960px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:15px;font-weight:normal;color:#555;margin:0 0 20px}
+  .meta{font-size:12px;color:#555;margin-bottom:24px;line-height:1.8}
+  .summary{display:flex;gap:0;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:24px}
+  .sum-item{flex:1;padding:14px 18px;text-align:center;border-right:1px solid #ddd}
+  .sum-item:last-child{border-right:none}
+  .sum-n{font-size:22px;font-weight:900;line-height:1.2;margin-bottom:3px}
+  .sum-l{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#777}
+  table{width:100%;border-collapse:collapse;margin-bottom:24px}
+  th{background:#111;color:#fff;padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:8px 10px;border-bottom:1px solid #eee}
+  tr:nth-child(even) td{background:#fafafa}
+  .total-row td{font-weight:bold;border-top:2px solid #111;background:#f0f0f0}
+  .print-btn{margin-top:8px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+  @media print{.print-btn{display:none}body{padding:16px}}
+</style>
+</head>
+<body>
+<h1>Innovation AID Sdn Bhd</h1>
+<h2>Subcon Payment Statement</h2>
+<div class="meta">
+  <strong>Subcontractor:</strong> Team Atik (SC01)<br>
+  <strong>Generated:</strong> ${genDate}
+</div>
+<div class="summary">
+  <div class="sum-item"><div class="sum-n">RM ${fmtN(totalOwed)}</div><div class="sum-l">Total Owed</div></div>
+  <div class="sum-item"><div class="sum-n" style="color:green">RM ${fmtN(totalPaid)}</div><div class="sum-l">Total Paid</div></div>
+  <div class="sum-item"><div class="sum-n" style="color:${outstanding>0?'#c01818':'green'}">RM ${fmtN(outstanding)}</div><div class="sum-l">Outstanding</div></div>
+</div>
+<table>
+<thead>
+  <tr>
+    <th>Quotation No</th><th>Project</th><th>Rolls</th>
+    <th>Rate/Roll</th><th>Amount</th><th>P1 Status</th><th>P2 Status</th>
+  </tr>
+</thead>
+<tbody>
+  ${rows}
+  <tr class="total-row">
+    <td colspan="4" style="text-align:right">TOTAL</td>
+    <td style="text-align:right">RM ${fmtN(totalOwed)}</td>
+    <td colspan="2"></td>
+  </tr>
+</tbody>
+</table>
+<button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else toast('Allow pop-ups to view the report');
 }
 </script>
 </body>
