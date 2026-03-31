@@ -176,14 +176,14 @@ function getSubcon(code) {
     for (var q = 0; q < quotes.length; q++) {
       var qt = quotes[q];
       if (qt.status === 'active' || qt.status === 'upcoming') {
-        activeQ.push({ no: qt.quotationNo, project: qt.projectName || qt.clientName || qt.quotationNo });
+        activeQ.push({ no: qt.quotationNo, project: qt.projectName || '', client: qt.clientName || '' });
       }
     }
 
     return {
       success:        true,
       code:           String(r.SubconCode),
-      name:           String(r.SubconName || SUBCONS[code] || code),
+      name:           String(SUBCONS[String(r.SubconCode)] || r.SubconName || code),
       totalPickup:    Number(r.TotalPickup) || 0,
       totalInstalled: Number(r.TotalInstalled) || 0,
       balance:        Number(r.Balance) || 0,
