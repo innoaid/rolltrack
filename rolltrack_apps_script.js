@@ -74,6 +74,9 @@ function doGet(e) {
       case 'markPayment':
         result = markPayment(p);
         break;
+      case 'getQuotations':
+        result = { success: true, quotations: getQuotations() };
+        break;
       default:
         result = { success: false, error: 'Unknown action: ' + (p.action || '(none)') };
     }
@@ -176,7 +179,8 @@ function getSubcon(code) {
     for (var q = 0; q < quotes.length; q++) {
       var qt = quotes[q];
       if (qt.status === 'active' || qt.status === 'upcoming') {
-        activeQ.push({ no: qt.quotationNo, project: qt.projectName || '', client: qt.clientName || '' });
+        Logger.log('getSubcon qt keys: ' + JSON.stringify(qt));
+        activeQ.push({ no: qt.quotationNo || qt.QuotationNo || '', project: qt.projectName || qt.ProjectName || '', client: qt.clientName || qt.ClientName || '' });
       }
     }
 
