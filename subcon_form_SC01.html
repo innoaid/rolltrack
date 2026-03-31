@@ -614,19 +614,9 @@ function showSuccess(type) {
   document.getElementById('successIcon').textContent  = icons[type]||'✅';
   document.getElementById('successTitle').textContent = titles[type]||'SUBMITTED!';
   let sub='';
-  if(type==='pickup')  sub=lastSubmission.qty+' rolls pickup recorded.
-Boss will review shortly.
-
-'+lastSubmission.qty+' gulung telah direkodkan.
-Boss akan semak tidak lama lagi.';
-  if(type==='install') sub=lastSubmission.qty+' rolls installed at '+lastSubmission.quot+'.
-Boss will review.
-
-'+lastSubmission.qty+' gulung dipasang di '+lastSubmission.quot+'.';
-  if(type==='return')  sub=lastSubmission.qty+' rolls return recorded.
-Boss will review.
-
-'+lastSubmission.qty+' gulung direkodkan untuk dipulangkan.';
+  if(type==='pickup')  sub=lastSubmission.qty+' rolls pickup recorded.\nBoss will review shortly.\n\n'+lastSubmission.qty+' gulung telah direkodkan.\nBoss akan semak tidak lama lagi.';
+  if(type==='install') sub=lastSubmission.qty+' rolls installed at '+lastSubmission.quot+'.\nBoss will review.\n\n'+lastSubmission.qty+' gulung dipasang di '+lastSubmission.quot+'.';
+  if(type==='return')  sub=lastSubmission.qty+' rolls return recorded.\nBoss will review.\n\n'+lastSubmission.qty+' gulung direkodkan untuk dipulangkan.';
   document.getElementById('successSub').textContent = sub;
   showScreen('s-success');
 }
@@ -635,25 +625,9 @@ function sendWhatsApp() {
   const lbl={pickup:'📦 PICKUP',install:'🔧 INSTALL REPORT',return:'↩️ RETURN'};
   const t=lastSubmission.type, d=lastSubmission.date||'';
   let msg='';
-  if(t==='pickup')  msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Qty: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
-  if(t==='install') msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Quotation: '+lastSubmission.quot+'
-Installed: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
-  if(t==='return')  msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Returned: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
+  if(t==='pickup')  msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nQty: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
+  if(t==='install') msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nQuotation: '+lastSubmission.quot+'\nInstalled: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
+  if(t==='return')  msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nReturned: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
   window.open('https://wa.me/'+BOSS_WA+'?text='+encodeURIComponent(msg),'_blank');
 }
 
