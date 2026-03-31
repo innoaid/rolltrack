@@ -318,10 +318,13 @@ function approveSubmission(submissionId) {
     // Update SubconBalances sheet totals
     updateSubconBalance(subconCode, formType, qty);
 
-    // Update quotation installed count; auto-create payment record on install approval
+    // Update quotation installed count; recalculate payment from all approved installs
     if (formType === 'install' && quotNo) {
-      var newTotal = updateQuotationInstalled(quotNo, qty);
-      createPaymentRecord(quotNo, subconCode, newTotal);
+      updateQuotationInstalled(quotNo, qty);
+      var payCalc = calculatePaymentForQuotation(quotNo, subconCode);
+      if (payCalc.success) {
+        upsertPaymentRecord(quotNo, subconCode, payCalc);
+      }
     }
 
     // Mark submission as approved
@@ -346,11 +349,18 @@ function rejectSubmission(submissionId, reason) {
 
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][idx['SubmissionID']]) !== String(submissionId)) continue;
+    var savedReason = reason || 'Rejected by admin';
     sheet.getRange(r + 1, idx['Status'] + 1).setValue('rejected');
     if (idx['RejectionReason'] !== undefined) {
-      sheet.getRange(r + 1, idx['RejectionReason'] + 1).setValue(reason || 'Rejected');
+      sheet.getRange(r + 1, idx['RejectionReason'] + 1).setValue(savedReason);
     }
-    return { success: true };
+    return {
+      success:     true,
+      reason:      savedReason,
+      quotationNo: String(data[r][idx['QuotationNo']] || ''),
+      subconCode:  String(data[r][idx['SubconCode']]  || ''),
+      formType:    String(data[r][idx['FormType']]     || '')
+    };
   }
   return { success: false, error: 'Submission not found: ' + submissionId };
 }
@@ -617,9 +627,90 @@ function calculatePayment(subconCode, quotationNo, rollsInstalled) {
   };
 }
 
+// ── calculatePaymentForQuotation ──────────────────────────────────
+// Sums qty from ALL approved install submissions for a quotation,
+// then applies tiered rate to the total.
+function calculatePaymentForQuotation(quotationNo, subconCode) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var rows = sheetToObjects(sheet);
+  var totalRolls = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.QuotationNo)  !== String(quotationNo)) continue;
+    if (String(r.SubconCode)   !== String(subconCode))  continue;
+    if (String(r.FormType)     !== 'install')            continue;
+    if (String(r.Status).trim().toLowerCase() !== 'approved') continue;
+    totalRolls += Number(r.Qty) || 0;
+  }
+  if (totalRolls === 0) return { success: false, error: 'No approved installs for ' + quotationNo };
+  var calc = calculateTieredRate(subconCode, totalRolls);
+  if (!calc.success) return calc;
+  calc.totalRolls = totalRolls;
+  return calc;
+}
+
+// ── upsertPaymentRecord ──────────────────────────────────────────
+// Creates or updates the payment record for a quotation.
+// On update: recalculates amounts but preserves existing payment statuses.
+function upsertPaymentRecord(quotationNo, subconCode, calc) {
+  var sheet = getSheet('Payments');
+  if (!sheet) return { success: false, error: 'Payments sheet not found' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idx     = {};
+  headers.forEach(function(h, i) { idx[h] = i; });
+  var qIdx = idx['QuotationNo'];
+
+  // Check if record exists — update in place
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][qIdx]) !== String(quotationNo)) continue;
+    // Update rolls, rate, amounts — preserve payment statuses/dates/refs
+    sheet.getRange(r + 1, idx['RollsInstalled'] + 1).setValue(calc.totalRolls);
+    sheet.getRange(r + 1, idx['RateApplied']    + 1).setValue(calc.rate);
+    sheet.getRange(r + 1, idx['TotalAmount']    + 1).setValue(calc.total);
+    sheet.getRange(r + 1, idx['Payment1Amount'] + 1).setValue(calc.payment1);
+    sheet.getRange(r + 1, idx['Payment2Amount'] + 1).setValue(calc.payment2);
+    return { success: true, updated: true, paymentID: data[r][idx['PaymentID']] };
+  }
+
+  // Create new record
+  var subconName = SUBCONS[subconCode] || subconCode;
+  var subSheet   = getSheet('SubconBalances');
+  if (subSheet) {
+    var subRows = sheetToObjects(subSheet);
+    for (var s = 0; s < subRows.length; s++) {
+      if (String(subRows[s].SubconCode) === String(subconCode)) {
+        subconName = String(subRows[s].SubconName || subconName);
+        break;
+      }
+    }
+  }
+
+  var paymentID = 'PAY-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss');
+  sheet.appendRow([
+    paymentID,         // PaymentID
+    quotationNo,       // QuotationNo
+    subconCode,        // SubconCode
+    subconName,        // SubconName
+    calc.totalRolls,   // RollsInstalled
+    calc.rate,         // RateApplied
+    calc.total,        // TotalAmount
+    calc.payment1,     // Payment1Amount
+    'unpaid',          // Payment1Status
+    '',                // Payment1Date
+    '',                // Payment1Reference
+    calc.payment2,     // Payment2Amount
+    'unpaid',          // Payment2Status
+    '',                // Payment2Date
+    '',                // Payment2Reference
+    nowStr()           // CreatedAt
+  ]);
+  return { success: true, created: true, paymentID: paymentID };
+}
+
 // ── createPaymentRecord ───────────────────────────────────────────
-// Called automatically when an install submission is approved.
-// Creates one payment record per quotation. Skips if already exists.
+// Legacy wrapper — kept for backward compatibility.
 function createPaymentRecord(quotationNo, subconCode, rollsInstalled) {
   var sheet = getSheet('Payments');
   if (!sheet) return { success: false, error: 'Payments sheet not found' };

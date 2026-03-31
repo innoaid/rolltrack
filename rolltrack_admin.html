@@ -422,10 +422,11 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <div class="modal">
     <div class="mh"></div>
     <div class="mt">Reject Submission</div>
-    <div class="fg"><label>Reason for rejection</label><input type="text" id="rej_reason" placeholder="e.g. Wrong qty, please resubmit"></div>
+    <div class="fg"><label>Reason for rejection / Sebab ditolak</label><input type="text" id="rej_reason" placeholder="e.g. Failed QC, membrane lifted at corner"></div>
+    <div id="rej_err" style="color:var(--red);font-size:12px;font-weight:700;display:none;margin-bottom:6px">Rejection reason is required</div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" style="flex:1" onclick="closeRejModal()">Cancel</button>
-      <button class="btn btn-r" style="flex:2" onclick="confirmReject()">❌ &nbsp;Reject</button>
+      <button class="btn btn-r" style="flex:2" onclick="confirmReject()">❌ &nbsp;Confirm Reject</button>
     </div>
   </div>
 </div>
@@ -596,9 +597,10 @@ function renderApprovals() {
         </div>
         <div class="appr-qty ${s.formType}">${s.qty}</div>
       </div>
+      ${s.formType === 'install' ? `<div style="padding:0 12px 8px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>` : ''}
       <div class="appr-actions">
-        <button class="appr-approve" onclick="approve('${s.id}')">✅ Approve</button>
-        <button class="appr-reject"  onclick="openReject('${s.id}')">❌ Reject</button>
+        <button class="appr-approve" onclick="approve('${s.id}','${s.formType}')">✅ Approve</button>
+        <button class="appr-reject"  onclick="openReject('${s.id}','${s.formType}','${(s.quotationNo||'').replace(/'/g,"\\'")}')">❌ Reject</button>
       </div>
     </div>`).join('');
 }
@@ -708,18 +710,21 @@ function rLI(m) {
 // ══════════════════════════════════════
 // APPROVE / REJECT
 // ══════════════════════════════════════
-async function approve(id) {
+async function approve(id, formType) {
+  const qcInput = ge('qcn_' + id);
+  const qcNotes = qcInput ? qcInput.value.trim() : '';
+  const params  = { action:'approveSubmission', submissionId:id };
+  if (qcNotes) params.qcNotes = qcNotes;
   loading(true, 'Approving...');
   try {
-    const res = await jsonp({ action:'approveSubmission', submissionId:id });
+    const res = await jsonp(params);
     loading(false);
     if (res.success) {
       toast('✅ Approved — stock updated');
-      // Remove from pending locally
       D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== id);
       const card = ge('appr_' + id);
       if (card) card.remove();
-      await loadData(); // full refresh
+      await loadData();
     } else {
       toast('Error: ' + (res.error||''));
     }
@@ -729,24 +734,45 @@ async function approve(id) {
   }
 }
 
-function openReject(id) {
-  rejectingId = id;
+let rejectingFormType = null;
+let rejectingQuotNo  = null;
+
+function openReject(id, formType, quotNo) {
+  rejectingId       = id;
+  rejectingFormType = formType || null;
+  rejectingQuotNo   = quotNo  || null;
   ge('rej_reason').value = '';
+  ge('rej_err').style.display = 'none';
   ge('rejOv').classList.add('open');
 }
-function closeRejModal() { ge('rejOv').classList.remove('open'); rejectingId = null; }
+function closeRejModal() { ge('rejOv').classList.remove('open'); rejectingId = null; rejectingFormType = null; rejectingQuotNo = null; }
 
 async function confirmReject() {
   if (!rejectingId) return;
-  const reason = ge('rej_reason').value.trim() || 'Rejected by admin';
+  const reason = ge('rej_reason').value.trim();
+  if (!reason) { ge('rej_err').style.display = 'block'; return; }
+  ge('rej_err').style.display = 'none';
+  const savedFormType = rejectingFormType;
+  const savedQuotNo   = rejectingQuotNo;
+  const savedId       = rejectingId;
   closeRejModal();
   loading(true, 'Rejecting...');
   try {
-    const res = await jsonp({ action:'rejectSubmission', submissionId:rejectingId, reason });
+    const res = await jsonp({ action:'rejectSubmission', submissionId:savedId, reason });
     loading(false);
     if (res.success) {
       toast('❌ Submission rejected');
-      D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== rejectingId);
+      D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== savedId);
+      // Send WhatsApp to boss for install rejections
+      if (savedFormType === 'install') {
+        const qt  = savedQuotNo || res.quotationNo || '';
+        const msg = 'RollTrack — Installation Rejected\n'
+          + 'Quotation: ' + qt + '\n'
+          + 'Reason: ' + reason + '\n'
+          + 'Please rectify and resubmit.\n\n'
+          + 'Laporan pemasangan ditolak. Sila betulkan dan hantar semula.';
+        window.open('https://wa.me/60146938657?text=' + encodeURIComponent(msg), '_blank');
+      }
       await loadData();
     } else {
       toast('Error: ' + (res.error||''));
