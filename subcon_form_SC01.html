@@ -427,344 +427,239 @@ body{max-width:480px;margin:0 auto}
 </div>
 
 <script>
-// ══════════════════════════════════════
-// CONFIG
-// ══════════════════════════════════════
-const API_URL   = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
+// ── CONFIG ──────────────────────────────────────────
+const API_URL     = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
 const SUBCON_CODE = 'SC01';
 const SUBCON_NAME = 'Team Atik';
-const BOSS_WA    = '60146938657';
+const BOSS_WA     = '60146938657';
 
-// ══════════════════════════════════════
-// STATE
-// ══════════════════════════════════════
-let photos = { pu: null, in: null, re: null };
-let balance = 0;
+let photos   = { pu: null, in: null, re: null };
+let balance  = 0;
 let lastSubmission = {};
 let quotations = [];
 
-// ══════════════════════════════════════
-// INIT
-// ══════════════════════════════════════
-window.addEventListener('load', () => {
-  setTodayDates();
-  loadSubconData();
-});
-
-function setTodayDates() {
-  const today = new Date().toISOString().split('T')[0];
-  ['pu_date','in_date','re_date'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = today;
+// ── JSONP — works cross-origin from GitHub Pages ─────
+function jsonp(params) {
+  return new Promise((resolve, reject) => {
+    const cb  = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const to  = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 15000);
+    window[cb] = data => { cleanup(); resolve(data); };
+    function cleanup() {
+      clearTimeout(to); delete window[cb];
+      const s = document.getElementById('jp_' + cb); if (s) s.remove();
+    }
+    params.callback = cb;
+    const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k)+'='+encodeURIComponent(String(v))).join('&');
+    const s  = document.createElement('script');
+    s.id     = 'jp_' + cb;
+    s.src    = API_URL + '?' + qs;
+    s.onerror = () => { cleanup(); reject(new Error('network error')); };
+    document.head.appendChild(s);
   });
 }
 
+// ── INIT ─────────────────────────────────────────────
+window.addEventListener('load', () => {
+  const today = new Date().toISOString().split('T')[0];
+  ['pu_date','in_date','re_date'].forEach(id => { const e=document.getElementById(id); if(e) e.value=today; });
+  loadSubconData();
+});
+
 async function loadSubconData() {
   try {
-    const res = await fetch(`${API_URL}?action=getSubcon&code=${SUBCON_CODE}`);
-    const data = await res.json();
-    if (data.success) {
-      balance = data.balance || 0;
-      document.getElementById('balNum').textContent = balance;
-      document.getElementById('totalPickup').textContent = data.totalPickup || 0;
-      document.getElementById('totalInstalled').textContent = data.totalInstalled || 0;
-
-      // Populate quotation dropdown
-      quotations = data.quotations || [];
-      const sel = document.getElementById('in_quot');
+    const d = await jsonp({ action:'getSubcon', code:SUBCON_CODE });
+    if (d.success) {
+      balance = d.balance || 0;
+      document.getElementById('balNum').textContent         = balance;
+      document.getElementById('totalPickup').textContent    = d.totalPickup    || 0;
+      document.getElementById('totalInstalled').textContent = d.totalInstalled || 0;
+      quotations = d.quotations || [];
+      const sel  = document.getElementById('in_quot');
       sel.innerHTML = '<option value="">— Select / Pilih —</option>';
       quotations.forEach(q => {
-        const opt = document.createElement('option');
-        opt.value = q.no;
-        opt.textContent = `${q.no} — ${q.project||q.client}`;
-        sel.appendChild(opt);
+        const o = document.createElement('option');
+        o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
+        sel.appendChild(o);
       });
     }
-  } catch (e) {
-    // Offline fallback — show cached or zero
+  } catch(e) {
     document.getElementById('balNum').textContent = balance;
   }
 }
 
-// ══════════════════════════════════════
-// NAVIGATION
-// ══════════════════════════════════════
+// ── NAV ───────────────────────────────────────────────
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
   document.getElementById(id).classList.add('show');
   window.scrollTo(0,0);
 }
+function goHome()       { showScreen('s-home'); loadSubconData(); }
+function goForm(type)   { showScreen('s-' + type); }
 
-function goHome() {
-  showScreen('s-home');
-  loadSubconData(); // refresh balance
-}
-
-function goForm(type) {
-  showScreen('s-' + type);
-}
-
-// ══════════════════════════════════════
-// PHOTO HANDLING
-// ══════════════════════════════════════
+// ── PHOTO ─────────────────────────────────────────────
 function handlePhoto(input, prefix) {
-  const file = input.files[0];
-  if (!file) return;
-
-  // Compress image before storing
+  const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
-  reader.onload = (e) => {
-    compressImage(e.target.result, (compressed) => {
-      photos[prefix] = compressed;
-      document.getElementById(prefix + '_placeholder').style.display = 'none';
-      document.getElementById(prefix + '_preview').style.display = 'block';
-      document.getElementById(prefix + '_img').src = compressed;
-      document.getElementById(prefix + '_photo_err').classList.remove('show');
-    });
-  };
+  reader.onload = e => compressImage(e.target.result, compressed => {
+    photos[prefix] = compressed;
+    document.getElementById(prefix+'_placeholder').style.display = 'none';
+    document.getElementById(prefix+'_preview').style.display     = 'block';
+    document.getElementById(prefix+'_img').src                   = compressed;
+    document.getElementById(prefix+'_photo_err').classList.remove('show');
+  });
   reader.readAsDataURL(file);
 }
-
 function retakePhoto(prefix) {
   photos[prefix] = null;
-  document.getElementById(prefix + '_placeholder').style.display = 'block';
-  document.getElementById(prefix + '_preview').style.display = 'none';
-  const inputMap = { pu: 'photoInput', in: 'photoInput2', re: 'photoInput3' };
-  document.getElementById(inputMap[prefix]).value = '';
+  document.getElementById(prefix+'_placeholder').style.display = 'block';
+  document.getElementById(prefix+'_preview').style.display     = 'none';
+  const m = {pu:'photoInput',in:'photoInput2',re:'photoInput3'};
+  document.getElementById(m[prefix]).value = '';
 }
-
-function compressImage(dataUrl, callback) {
+function compressImage(src, cb) {
   const img = new Image();
   img.onload = () => {
-    const canvas = document.createElement('canvas');
-    const MAX = 1200;
+    const c = document.createElement('canvas'), MAX = 1000;
     let w = img.width, h = img.height;
-    if (w > MAX || h > MAX) {
-      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-      else { w = Math.round(w * MAX / h); h = MAX; }
-    }
-    canvas.width = w; canvas.height = h;
-    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-    callback(canvas.toDataURL('image/jpeg', 0.75));
+    if (w>MAX||h>MAX) { if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
+    c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
+    cb(c.toDataURL('image/jpeg',0.7));
   };
-  img.src = dataUrl;
+  img.src = src;
 }
 
-// ══════════════════════════════════════
-// VALIDATION HELPERS
-// ══════════════════════════════════════
-function checkBalance() {
-  const qty = parseInt(document.getElementById('pu_qty').value) || 0;
-  // Just a soft warning — pickup can exceed current balance (boss approves)
-}
-
+// ── VALIDATION ────────────────────────────────────────
+function checkBalance() {}
 function checkInstallQty() {
-  const qty = parseInt(document.getElementById('in_qty').value) || 0;
-  const warn = document.getElementById('in_bal_warn');
-  if (qty > balance && balance > 0) {
-    warn.style.display = 'block';
-  } else {
-    warn.style.display = 'none';
-  }
+  const qty = parseInt(document.getElementById('in_qty').value)||0;
+  document.getElementById('in_bal_warn').style.display = (qty>balance&&balance>0)?'block':'none';
 }
-
 function showErr(id) { document.getElementById(id).classList.add('show'); }
 function hideErr(id) { document.getElementById(id).classList.remove('show'); }
 
-// ══════════════════════════════════════
-// SUBMIT FUNCTIONS
-// ══════════════════════════════════════
+// ── SUBMIT PICKUP ─────────────────────────────────────
 async function submitPickup() {
-  let valid = true;
-  const qty = parseInt(document.getElementById('pu_qty').value);
-  if (!qty || qty < 1) { showErr('pu_qty_err'); valid = false; } else hideErr('pu_qty_err');
-  if (!photos.pu) { showErr('pu_photo_err'); valid = false; } else hideErr('pu_photo_err');
-  if (!valid) { showToast('Please fill all required fields'); return; }
-
-  const payload = {
-    action: 'submitSubconForm',
-    subconCode: SUBCON_CODE,
-    subconName: SUBCON_NAME,
-    formType: 'pickup',
-    qty: qty,
-    date: document.getElementById('pu_date').value,
-    notes: document.getElementById('pu_notes').value,
-    photoBase64: photos.pu,
-    quotationNo: ''
-  };
-
-  lastSubmission = {
-    type: 'pickup',
-    qty: qty,
-    date: document.getElementById('pu_date').value
-  };
-
-  await sendToAPI(payload, 'pickup');
+  let ok=true;
+  const qty=parseInt(document.getElementById('pu_qty').value);
+  if(!qty||qty<1){showErr('pu_qty_err');ok=false;}else hideErr('pu_qty_err');
+  if(!photos.pu){showErr('pu_photo_err');ok=false;}else hideErr('pu_photo_err');
+  if(!ok){showToast('Please fill all required fields');return;}
+  lastSubmission={type:'pickup',qty,date:document.getElementById('pu_date').value};
+  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
+    formType:'pickup',qty,date:document.getElementById('pu_date').value,
+    notes:document.getElementById('pu_notes').value,quotationNo:''},'pickup');
 }
 
+// ── SUBMIT INSTALL ────────────────────────────────────
 async function submitInstall() {
-  let valid = true;
-  const quot = document.getElementById('in_quot').value;
-  const qty  = parseInt(document.getElementById('in_qty').value);
-  if (!quot) { showErr('in_quot_err'); valid = false; } else hideErr('in_quot_err');
-  if (!qty || qty < 1) { showErr('in_qty_err'); valid = false; } else hideErr('in_qty_err');
-  if (!photos.in) { showErr('in_photo_err'); valid = false; } else hideErr('in_photo_err');
-  if (!valid) { showToast('Please fill all required fields'); return; }
-
-  // Block if qty exceeds balance
-  if (qty > balance) {
-    showToast(`⚠️ You only have ${balance} rolls. Cannot claim ${qty}.`);
-    return;
-  }
-
-  const payload = {
-    action: 'submitSubconForm',
-    subconCode: SUBCON_CODE,
-    subconName: SUBCON_NAME,
-    formType: 'install',
-    quotationNo: quot,
-    qty: qty,
-    date: document.getElementById('in_date').value,
-    notes: document.getElementById('in_area').value,
-    photoBase64: photos.in
-  };
-
-  lastSubmission = {
-    type: 'install',
-    qty: qty,
-    quot: quot,
-    date: document.getElementById('in_date').value
-  };
-
-  await sendToAPI(payload, 'install');
+  let ok=true;
+  const quot=document.getElementById('in_quot').value;
+  const qty=parseInt(document.getElementById('in_qty').value);
+  if(!quot){showErr('in_quot_err');ok=false;}else hideErr('in_quot_err');
+  if(!qty||qty<1){showErr('in_qty_err');ok=false;}else hideErr('in_qty_err');
+  if(!photos.in){showErr('in_photo_err');ok=false;}else hideErr('in_photo_err');
+  if(!ok){showToast('Please fill all required fields');return;}
+  if(qty>balance){showToast('⚠️ You only have '+balance+' rolls. Cannot claim '+qty+'.');return;}
+  lastSubmission={type:'install',qty,quot,date:document.getElementById('in_date').value};
+  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
+    formType:'install',quotationNo:quot,qty,date:document.getElementById('in_date').value,
+    notes:document.getElementById('in_area').value},'install');
 }
 
+// ── SUBMIT RETURN ─────────────────────────────────────
 async function submitReturn() {
-  let valid = true;
-  const qty = parseInt(document.getElementById('re_qty').value);
-  if (!qty || qty < 1) { showErr('re_qty_err'); valid = false; } else hideErr('re_qty_err');
-  if (!photos.re) { showErr('re_photo_err'); valid = false; } else hideErr('re_photo_err');
-  if (!valid) { showToast('Please fill all required fields'); return; }
-
-  const payload = {
-    action: 'submitSubconForm',
-    subconCode: SUBCON_CODE,
-    subconName: SUBCON_NAME,
-    formType: 'return',
-    qty: qty,
-    date: document.getElementById('re_date').value,
-    notes: `Condition: ${document.getElementById('re_cond').value} | Reason: ${document.getElementById('re_reason').value}`,
-    photoBase64: photos.re,
-    quotationNo: ''
-  };
-
-  lastSubmission = {
-    type: 'return',
-    qty: qty,
-    date: document.getElementById('re_date').value
-  };
-
-  await sendToAPI(payload, 'return');
+  let ok=true;
+  const qty=parseInt(document.getElementById('re_qty').value);
+  if(!qty||qty<1){showErr('re_qty_err');ok=false;}else hideErr('re_qty_err');
+  if(!photos.re){showErr('re_photo_err');ok=false;}else hideErr('re_photo_err');
+  if(!ok){showToast('Please fill all required fields');return;}
+  lastSubmission={type:'return',qty,date:document.getElementById('re_date').value};
+  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
+    formType:'return',qty,date:document.getElementById('re_date').value,
+    notes:'Condition:'+document.getElementById('re_cond').value+'|Reason:'+document.getElementById('re_reason').value,
+    quotationNo:''},'return');
 }
 
-// ══════════════════════════════════════
-// API CALL — GET mode bypasses CORS
-// ══════════════════════════════════════
-async function sendToAPI(payload, type) {
+// ── SEND VIA JSONP ────────────────────────────────────
+async function send(payload, type) {
   showLoading('Sending... / Menghantar...');
-
   try {
-    // Build query string from payload (no photo yet)
-    const p = new URLSearchParams({
+    const d = await jsonp({
       action:      payload.action,
       subconCode:  payload.subconCode,
       subconName:  payload.subconName,
       formType:    payload.formType,
       quotationNo: payload.quotationNo || '',
       qty:         String(payload.qty),
-      date:        payload.date || '',
+      date:        payload.date  || '',
       notes:       payload.notes || ''
     });
-
-    // Use no-cors GET — works reliably with Apps Script
-    await fetch(API_URL + '?' + p.toString(), { mode: 'no-cors' });
-
     hideLoading();
-
-    // no-cors means we cannot read the response body
-    // but reaching here without throwing means it was sent
-    const prefix = type === 'pickup' ? 'pu' : type === 'install' ? 'in' : 're';
-    photos[prefix] = null;
-    showSuccess(type);
-
-  } catch (err) {
+    if(d.success){
+      photos[type==='pickup'?'pu':type==='install'?'in':'re']=null;
+      showSuccess(type);
+    } else {
+      showToast('Error: '+(d.error||'Please try again'));
+    }
+  } catch(e) {
     hideLoading();
-    showToast(navigator.onLine
-      ? 'Connection error. Try again. / Cuba lagi.'
-      : 'No internet / Tiada internet.');
+    showToast(navigator.onLine?'Connection error. Try again.':'No internet / Tiada internet.');
   }
 }
 
-// ══════════════════════════════════════
-// SUCCESS + WHATSAPP
-// ══════════════════════════════════════
+// ── SUCCESS ───────────────────────────────────────────
 function showSuccess(type) {
-  const icons  = { pickup:'📦', install:'🔧', return:'↩️' };
-  const titles = { pickup:'SUBMITTED!', install:'REPORTED!', return:'RETURNED!' };
-  document.getElementById('successIcon').textContent = icons[type] || '✅';
-  document.getElementById('successTitle').textContent = titles[type] || 'SUBMITTED!';
+  const icons={pickup:'📦',install:'🔧',return:'↩️'};
+  const titles={pickup:'SUBMITTED!',install:'REPORTED!',return:'RETURNED!'};
+  document.getElementById('successIcon').textContent  = icons[type]||'✅';
+  document.getElementById('successTitle').textContent = titles[type]||'SUBMITTED!';
+  let sub='';
+  if(type==='pickup')  sub=lastSubmission.qty+' rolls pickup recorded.
+Boss will review shortly.
 
-  let sub = '';
-  if (type === 'pickup') {
-    sub = `${lastSubmission.qty} rolls pickup recorded.\nBoss will review shortly.\n\n${lastSubmission.qty} gulung telah direkodkan.\nBoss akan semak tidak lama lagi.`;
-  } else if (type === 'install') {
-    sub = `${lastSubmission.qty} rolls installed at ${lastSubmission.quot} recorded.\nBoss will review.\n\n${lastSubmission.qty} gulung dipasang di ${lastSubmission.quot} telah direkodkan.`;
-  } else {
-    sub = `${lastSubmission.qty} rolls return recorded.\nBoss will review.\n\n${lastSubmission.qty} gulung telah direkodkan untuk dipulangkan.`;
-  }
+'+lastSubmission.qty+' gulung telah direkodkan.
+Boss akan semak tidak lama lagi.';
+  if(type==='install') sub=lastSubmission.qty+' rolls installed at '+lastSubmission.quot+'.
+Boss will review.
+
+'+lastSubmission.qty+' gulung dipasang di '+lastSubmission.quot+'.';
+  if(type==='return')  sub=lastSubmission.qty+' rolls return recorded.
+Boss will review.
+
+'+lastSubmission.qty+' gulung direkodkan untuk dipulangkan.';
   document.getElementById('successSub').textContent = sub;
   showScreen('s-success');
 }
 
 function sendWhatsApp() {
-  const typeLabel = {
-    pickup: '📦 PICKUP',
-    install: '🔧 INSTALL REPORT',
-    return: '↩️ RETURN'
-  };
+  const lbl={pickup:'📦 PICKUP',install:'🔧 INSTALL REPORT',return:'↩️ RETURN'};
+  const t=lastSubmission.type, d=lastSubmission.date||'';
+  let msg='';
+  if(t==='pickup')  msg=lbl[t]+'
+Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
+Qty: '+lastSubmission.qty+' rolls
+Date: '+d+'
 
-  let msg = '';
-  const t = lastSubmission.type;
-  const d = lastSubmission.date || new Date().toLocaleDateString('en-MY');
+Please review in RollTrack.';
+  if(t==='install') msg=lbl[t]+'
+Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
+Quotation: '+lastSubmission.quot+'
+Installed: '+lastSubmission.qty+' rolls
+Date: '+d+'
 
-  if (t === 'pickup') {
-    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQty: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
-  } else if (t === 'install') {
-    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQuotation: ${lastSubmission.quot}\nQty Installed: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
-  } else {
-    msg = `${typeLabel[t]}\nSubcon: ${SUBCON_NAME} (${SUBCON_CODE})\nQty Returned: ${lastSubmission.qty} rolls\nDate: ${d}\n\nPlease review in RollTrack.`;
-  }
+Please review in RollTrack.';
+  if(t==='return')  msg=lbl[t]+'
+Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
+Returned: '+lastSubmission.qty+' rolls
+Date: '+d+'
 
-  const url = `https://wa.me/${BOSS_WA}?text=${encodeURIComponent(msg)}`;
-  window.open(url, '_blank');
+Please review in RollTrack.';
+  window.open('https://wa.me/'+BOSS_WA+'?text='+encodeURIComponent(msg),'_blank');
 }
 
-// ══════════════════════════════════════
-// UI HELPERS
-// ══════════════════════════════════════
-function showLoading(text) {
-  document.getElementById('loadingText').textContent = text || 'Sending...';
-  document.getElementById('loadingOverlay').classList.add('show');
-}
-function hideLoading() {
-  document.getElementById('loadingOverlay').classList.remove('show');
-}
-function showToast(msg) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
+function showLoading(text) { document.getElementById('loadingText').textContent=text||'Sending...'; document.getElementById('loadingOverlay').classList.add('show'); }
+function hideLoading()      { document.getElementById('loadingOverlay').classList.remove('show'); }
+function showToast(msg)     { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
 </script>
 </body>
 </html>
