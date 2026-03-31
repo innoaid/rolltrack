@@ -234,21 +234,23 @@ function updateSubconBalance(subconCode, formType, qty) {
 function getPendingSubmissions() {
   var sheet = getSheet('Submissions');
   if (!sheet) return [];
-  var data    = sheet.getDataRange().getValues();
-  if (data.length <= 1) return [];
-  var headers   = data[0];
-  var statusIdx = headers.indexOf('Status');
-  var result    = [];
-  for (var r = 1; r < data.length; r++) {
-    if (String(data[r][statusIdx]).trim().toLowerCase() !== 'pending') continue;
-    var obj = {};
-    for (var c = 0; c < headers.length; c++) {
-      var v = data[r][c];
-      // Normalise key: lowercase first char, but special-case "ID" → "id"
-      var key = headers[c] === 'ID' ? 'id' : headers[c].charAt(0).toLowerCase() + headers[c].slice(1);
-      obj[key] = v instanceof Date ? v.toISOString() : v;
-    }
-    result.push(obj);
+  var rows = sheetToObjects(sheet);
+  var result = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.Status || '').trim().toLowerCase() !== 'pending') continue;
+    result.push({
+      id:          r.SubmissionID   || '',
+      timestamp:   r.Timestamp      || '',
+      subconCode:  r.SubconCode     || '',
+      subconName:  r.SubconName     || '',
+      formType:    r.FormType       || '',
+      quotationNo: r.QuotationNo    || '',
+      qty:         Number(r.Qty)    || 0,
+      date:        r.ActivityDate   || '',
+      notes:       r.Notes          || '',
+      status:      r.Status         || ''
+    });
   }
   return result;
 }
@@ -260,18 +262,24 @@ function submitSubconForm(p) {
   var subId = 'SUB-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss') +
               '-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
 
+  // Columns: A=Timestamp B=SubconCode C=SubconName D=FormType E=QuotationNo
+  //          F=Qty G=ActivityDate H=Notes I=PhotoURL J=Status
+  //          K=ApprovedBy L=ApprovedAt M=RejectionReason N=SubmissionID
   sheet.appendRow([
-    subId,
-    new Date(),
-    p.formType    || '',
-    p.subconCode  || '',
-    p.subconName  || '',
-    p.quotationNo || '',
-    Number(p.qty) || 0,
-    p.date        || '',
-    p.notes       || '',
-    'pending',
-    ''  // RejectionReason
+    new Date(),           // A  Timestamp
+    p.subconCode  || '',  // B  SubconCode
+    p.subconName  || '',  // C  SubconName
+    p.formType    || '',  // D  FormType
+    p.quotationNo || '',  // E  QuotationNo
+    Number(p.qty) || 0,   // F  Qty
+    p.date        || '',  // G  ActivityDate
+    p.notes       || '',  // H  Notes
+    p.photoURL    || '',  // I  PhotoURL
+    'pending',            // J  Status
+    '',                   // K  ApprovedBy
+    '',                   // L  ApprovedAt
+    '',                   // M  RejectionReason
+    subId                 // N  SubmissionID
   ]);
 
   return { success: true, submissionId: subId };
@@ -287,7 +295,7 @@ function approveSubmission(submissionId) {
 
   for (var r = 1; r < data.length; r++) {
     var row = data[r];
-    if (String(row[idx['ID']]) !== String(submissionId)) continue;
+    if (String(row[idx['SubmissionID']]) !== String(submissionId)) continue;
     if (String(row[idx['Status']]) !== 'pending') {
       return { success: false, error: 'Submission already processed' };
     }
@@ -337,7 +345,7 @@ function rejectSubmission(submissionId, reason) {
   headers.forEach(function(h, i) { idx[h] = i; });
 
   for (var r = 1; r < data.length; r++) {
-    if (String(data[r][idx['ID']]) !== String(submissionId)) continue;
+    if (String(data[r][idx['SubmissionID']]) !== String(submissionId)) continue;
     sheet.getRange(r + 1, idx['Status'] + 1).setValue('rejected');
     if (idx['RejectionReason'] !== undefined) {
       sheet.getRange(r + 1, idx['RejectionReason'] + 1).setValue(reason || 'Rejected');
