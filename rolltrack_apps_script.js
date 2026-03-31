@@ -5,6 +5,8 @@
 
 var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
 
+var SUBCONS = { 'SC01': 'Team Atik' };
+
 // ── Helpers ──────────────────────────────────────────────────────
 function getSpreadsheet() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
 function getSheet(name)   { return getSpreadsheet().getSheetByName(name); }
@@ -137,83 +139,93 @@ function getAll() {
 
 // ════════════════════════════════════════════════════════════════
 // SUBCONS
+// SubconBalances sheet columns (by position — header row not relied on):
+//   A(0) SubconCode | B(1) SubconName | C(2) TotalPickup
+//   D(3) TotalInstalled | E(4) Balance | F(5) LastUpdated
 // ════════════════════════════════════════════════════════════════
 
 function getSubconBalances() {
-  var subSheet = getSheet('Subcons');
-  if (!subSheet) return [];
-  var subData    = subSheet.getDataRange().getValues();
-  var subHeaders = subData[0];
-  var codeIdx    = subHeaders.indexOf('SubconCode');
-  var nameIdx    = subHeaders.indexOf('SubconName');
-
-  var logSheet   = getSheet('Log');
-  var logData    = logSheet ? logSheet.getDataRange().getValues() : [[]];
-  var logHeaders = logData[0] || [];
-  var lTypeIdx   = logHeaders.indexOf('Type');
-  var lCodeIdx   = logHeaders.indexOf('SubconCode');
-  var lQtyIdx    = logHeaders.indexOf('Qty');
-
+  var sheet = getSheet('SubconBalances');
+  if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
   var result = [];
-  for (var r = 1; r < subData.length; r++) {
-    var code = subData[r][codeIdx];
-    var name = subData[r][nameIdx];
-    if (!code) continue;
-
-    var totalPickup    = 0;
-    var totalInstalled = 0;
-    var totalReturned  = 0;
-
-    for (var lr = 1; lr < logData.length; lr++) {
-      var lRow = logData[lr];
-      if (String(lRow[lCodeIdx]) !== String(code)) continue;
-      var t = String(lRow[lTypeIdx]);
-      var q = Number(lRow[lQtyIdx]) || 0;
-      if (t === 'pickup')                       totalPickup    += q;
-      if (t === 'install')                      totalInstalled += q;
-      if (t === 'return' || t === 'returned')   totalReturned  += q;
-    }
-
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (!row[0]) continue;
     result.push({
-      code:           code,
-      name:           name,
-      balance:        totalPickup - totalInstalled - totalReturned,
-      totalPickup:    totalPickup,
-      totalInstalled: totalInstalled,
-      totalReturned:  totalReturned
+      code:           String(row[0]),
+      name:           String(row[1] || SUBCONS[String(row[0])] || row[0]),
+      totalPickup:    Number(row[2]) || 0,
+      totalInstalled: Number(row[3]) || 0,
+      balance:        Number(row[4]) || 0,
+      lastUpdated:    row[5] instanceof Date ? row[5].toISOString() : String(row[5] || '')
     });
   }
   return result;
 }
 
-// getSubcon — used by subcon form to load own data
+// getSubcon — used by the subcon mobile form to load own data
 function getSubcon(code) {
-  var balances = getSubconBalances();
-  var sub = null;
-  for (var i = 0; i < balances.length; i++) {
-    if (String(balances[i].code) === String(code)) { sub = balances[i]; break; }
-  }
-  if (!sub) return { success: false, error: 'Subcon not found: ' + code };
+  var sheet = getSheet('SubconBalances');
+  if (!sheet) return { success: false, error: 'SubconBalances sheet not found' };
+  var data = sheet.getDataRange().getValues();
+  // Find the row where column A matches the requested subcon code
+  for (var r = 1; r < data.length; r++) {
+    var row = data[r];
+    if (String(row[0]) !== String(code)) continue;
 
-  // Active quotations for the install dropdown
-  var quotes = getQuotations();
-  var activeQ = [];
-  for (var q = 0; q < quotes.length; q++) {
-    var qt = quotes[q];
-    if (qt.status === 'active' || qt.status === 'upcoming') {
-      activeQ.push({ no: qt.quotationNo, project: qt.projectName || qt.clientName || qt.quotationNo });
+    // Build active quotations list for the install dropdown
+    var quotes  = getQuotations();
+    var activeQ = [];
+    for (var q = 0; q < quotes.length; q++) {
+      var qt = quotes[q];
+      if (qt.status === 'active' || qt.status === 'upcoming') {
+        activeQ.push({ no: qt.quotationNo, project: qt.projectName || qt.clientName || qt.quotationNo });
+      }
     }
-  }
 
-  return {
-    success:        true,
-    code:           sub.code,
-    name:           sub.name,
-    balance:        sub.balance,
-    totalPickup:    sub.totalPickup,
-    totalInstalled: sub.totalInstalled,
-    quotations:     activeQ
-  };
+    return {
+      success:        true,
+      code:           String(row[0]),
+      name:           String(row[1] || SUBCONS[code] || code),
+      totalPickup:    Number(row[2]) || 0,
+      totalInstalled: Number(row[3]) || 0,
+      balance:        Number(row[4]) || 0,
+      quotations:     activeQ
+    };
+  }
+  return { success: false, error: 'Subcon not found: ' + code };
+}
+
+// updateSubconBalance — called by approveSubmission to keep SubconBalances in sync.
+// Creates the row for the subcon if it does not yet exist.
+function updateSubconBalance(subconCode, formType, qty) {
+  var sheet = getSheet('SubconBalances');
+  if (!sheet) return;
+  var data = sheet.getDataRange().getValues();
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][0]) !== String(subconCode)) continue;
+    var pickup    = Number(data[r][2]) || 0;
+    var installed = Number(data[r][3]) || 0;
+    if (formType === 'pickup') {
+      pickup += qty;
+    } else if (formType === 'install') {
+      installed += qty;
+    } else if (formType === 'return' || formType === 'returned') {
+      pickup = Math.max(0, pickup - qty);
+    }
+    sheet.getRange(r + 1, 3).setValue(pickup);
+    sheet.getRange(r + 1, 4).setValue(installed);
+    sheet.getRange(r + 1, 5).setValue(pickup - installed);
+    sheet.getRange(r + 1, 6).setValue(new Date());
+    return;
+  }
+  // Row missing — create it
+  var name       = SUBCONS[subconCode] || subconCode;
+  var newPickup  = (formType === 'pickup')  ? qty : 0;
+  var newInstall = (formType === 'install') ? qty : 0;
+  sheet.appendRow([subconCode, name, newPickup, newInstall, newPickup - newInstall, new Date()]);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -287,13 +299,16 @@ function approveSubmission(submissionId) {
     var quotNo     = row[idx['QuotationNo']];
     var notes      = row[idx['Notes']] || '';
 
-    // Update warehouse stock
+    // Update warehouse stock (pickup draws from warehouse; return puts back)
     var cfg = getConfig();
     if (formType === 'pickup') {
       setConfigKey('warehouse', Math.max(0, (cfg.warehouse || 0) - qty));
     } else if (formType === 'return' || formType === 'returned') {
       setConfigKey('warehouse', (cfg.warehouse || 0) + qty);
     }
+
+    // Update SubconBalances sheet totals
+    updateSubconBalance(subconCode, formType, qty);
 
     // Update quotation installed count; auto-create payment record on install approval
     if (formType === 'install' && quotNo) {
@@ -615,17 +630,14 @@ function createPaymentRecord(quotationNo, subconCode, rollsInstalled) {
   var calc = calculateTieredRate(subconCode, rollsInstalled);
   if (!calc.success) return calc;
 
-  // Resolve subcon name
-  var subconName = subconCode;
-  var subSheet   = getSheet('Subcons');
+  // Resolve subcon name from SubconBalances (col A = code, col B = name)
+  var subconName = SUBCONS[subconCode] || subconCode;
+  var subSheet   = getSheet('SubconBalances');
   if (subSheet) {
-    var subData    = subSheet.getDataRange().getValues();
-    var sHeaders   = subData[0];
-    var scIdx      = sHeaders.indexOf('SubconCode');
-    var snIdx      = sHeaders.indexOf('SubconName');
+    var subData = subSheet.getDataRange().getValues();
     for (var s = 1; s < subData.length; s++) {
-      if (String(subData[s][scIdx]) === String(subconCode)) {
-        subconName = subData[s][snIdx];
+      if (String(subData[s][0]) === String(subconCode)) {
+        subconName = String(subData[s][1] || subconName);
         break;
       }
     }
