@@ -3,663 +3,902 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="theme-color" content="#0f1923">
-<title>Team Atik — RollTrack</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<title>RollTrack Pro — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=DM+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#0f1923;
-  --card:#162130;
-  --card2:#1c2b3a;
-  --border:#1e3248;
-  --ink:#e8f0f8;
-  --muted:#4a6480;
-  --teal:#00d4aa;
-  --teal-d:#009e7a;
-  --teal-l:rgba(0,212,170,.12);
-  --amber:#ffb020;
-  --amber-l:rgba(255,176,32,.12);
-  --red:#ff4f4f;
-  --red-l:rgba(255,79,79,.12);
-  --blue:#3b9eff;
-  --blue-l:rgba(59,158,255,.12);
+  --bg:#f7f5f0;--surface:#ffffff;--s2:#f0ede6;--s3:#e8e4db;
+  --border:#ddd8ce;--ink:#1a1612;--muted:#9a9080;
+  --orange:#d4500a;--orange-l:rgba(212,80,10,.1);
+  --green:#1a7a3c;--green-l:rgba(26,122,60,.1);
+  --blue:#1a4e8a;--blue-l:rgba(26,78,138,.1);
+  --red:#c01818;--red-l:rgba(192,24,24,.1);
+  --gold:#8a6400;--gold-l:rgba(138,100,0,.1);
+  --teal:#0a8a6e;--teal-l:rgba(10,138,110,.1);
 }
-html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;overflow-x:hidden}
+html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:14px;max-width:480px;margin:0 auto}
 
-/* ── SPLASH / HOME ── */
-.screen{display:none;min-height:100vh;flex-direction:column}
-.screen.show{display:flex}
+/* ── HEADER ── */
+.hdr{background:var(--ink);padding:14px 16px 0;position:sticky;top:0;z-index:200}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.logo{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:#fff;letter-spacing:.5px}
+.logo em{color:#d4500a;font-style:normal}
+.logo small{font-size:11px;color:#666;font-weight:500;margin-left:4px;font-family:'DM Sans',sans-serif}
+.hdr-date{font-size:10px;color:#777;font-family:'JetBrains Mono',monospace}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid #2a2520}
+.kpi{padding:8px 4px 11px;text-align:center}
+.kpi+.kpi{border-left:1px solid #2a2520}
+.kn{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;line-height:1}
+.kn.wh{color:#d4500a}.kn.si{color:#6aaee8}.kn.in{color:#4acf80}
+.kl{font-size:9px;color:#777;text-transform:uppercase;letter-spacing:.8px;margin-top:1px}
 
-/* HOME SCREEN */
-#s-home{background:var(--bg);padding:0}
-.home-top{padding:36px 20px 24px;text-align:center;position:relative}
-.home-top::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 0%, rgba(0,212,170,.15) 0%, transparent 70%);pointer-events:none}
-.brand{font-family:'Bebas Neue',sans-serif;font-size:13px;letter-spacing:3px;color:var(--muted);margin-bottom:12px}
-.company-badge{display:inline-flex;align-items:center;gap:8px;background:var(--teal-l);border:1.5px solid rgba(0,212,170,.3);border-radius:100px;padding:8px 18px;margin-bottom:20px}
-.company-icon{width:32px;height:32px;border-radius:50%;background:var(--teal);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:#000}
-.company-name{font-size:15px;font-weight:800;color:var(--teal)}
-.balance-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:20px;margin:0 20px 8px;position:relative;overflow:hidden}
-.balance-card::before{content:'';position:absolute;top:-30px;right:-30px;width:100px;height:100px;border-radius:50%;background:rgba(0,212,170,.06)}
-.bal-label{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
-.bal-num{font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:1;color:var(--teal);margin-bottom:2px}
-.bal-sub{font-size:12px;color:var(--muted);font-weight:600}
-.bal-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
-.bstat{text-align:center}
-.bstat-n{font-family:'Bebas Neue',sans-serif;font-size:26px;line-height:1;margin-bottom:2px}
-.bstat-n.pick{color:var(--amber)}.bstat-n.inst{color:var(--blue)}
-.bstat-l{font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+/* ── TABS ── */
+.tabs{display:flex;background:var(--surface);border-bottom:2px solid var(--border);overflow-x:auto;scrollbar-width:none;position:sticky;top:90px;z-index:190}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:none;padding:10px 14px;border:none;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .18s}
+.tab.on{color:var(--orange);border-bottom-color:var(--orange)}
+.tab .badge{display:inline-flex;align-items:center;justify-content:center;background:var(--red);color:#fff;border-radius:100px;font-size:9px;font-weight:800;min-width:16px;height:16px;padding:0 4px;margin-left:4px}
 
-/* ACTION BUTTONS */
-.actions-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;padding:20px 20px 10px}
-.actions{display:flex;flex-direction:column;gap:10px;padding:0 20px 32px}
-.action-btn{border:none;border-radius:14px;padding:18px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:all .18s;text-align:left;width:100%}
-.action-btn:active{transform:scale(.97)}
-.action-btn.pickup{background:linear-gradient(135deg,#1a3a2a,#0f2a1a);border:1.5px solid rgba(0,212,170,.3)}
-.action-btn.install{background:linear-gradient(135deg,#2a2a10,#1a1a08);border:1.5px solid rgba(255,176,32,.3)}
-.action-btn.return{background:linear-gradient(135deg,#2a1010,#1a0808);border:1.5px solid rgba(255,79,79,.3)}
-.action-icon{width:52px;height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
-.pickup .action-icon{background:var(--teal-l)}
-.install .action-icon{background:var(--amber-l)}
-.return .action-icon{background:var(--red-l)}
-.action-text{}
-.action-main{font-size:18px;font-weight:900;margin-bottom:2px}
-.pickup .action-main{color:var(--teal)}
-.install .action-main{color:var(--amber)}
-.return .action-main{color:var(--red)}
-.action-malay{font-size:12px;font-weight:700;color:var(--muted)}
-.action-arrow{margin-left:auto;font-size:20px;color:var(--muted);flex-shrink:0}
+/* ── PAGES ── */
+.pg{display:none;padding:14px 14px 40px}
+.pg.on{display:block}
 
-/* ── FORM SCREENS ── */
-.form-screen{background:var(--bg);flex-direction:column}
-.form-header{padding:16px 16px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border);background:var(--card);position:sticky;top:0;z-index:50}
-.back-btn{width:36px;height:36px;border-radius:10px;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0}
-.form-title-wrap{}
-.form-title{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.5px}
-.form-sub{font-size:11px;color:var(--muted);font-weight:600}
-.form-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;margin-left:auto}
-.fi-teal{background:var(--teal-l)}.fi-amber{background:var(--amber-l)}.fi-red{background:var(--red-l)}
+/* ── SECTION HEAD ── */
+.sh{display:flex;align-items:center;gap:7px;margin:6px 0 11px}
+.sh h2{font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;letter-spacing:.3px}
+.tag{padding:3px 8px;border-radius:20px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.tg{background:var(--green-l);color:var(--green)}
+.tb{background:var(--blue-l);color:var(--blue)}
+.to{background:var(--orange-l);color:var(--orange)}
+.tr2{background:var(--red-l);color:var(--red)}
+.tgd{background:var(--gold-l);color:var(--gold)}
+.tt{background:var(--teal-l);color:var(--teal)}
 
-/* FORM BODY */
-.form-body{flex:1;padding:16px;overflow-y:auto;padding-bottom:100px}
-.fgroup{margin-bottom:14px}
-.flabel{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;display:block}
-.flabel .bm{font-size:10px;color:var(--muted);font-weight:600;text-transform:none;letter-spacing:0}
-input,select,textarea{width:100%;background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--ink);font-family:'Nunito',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .18s}
-input:focus,select:focus{border-color:var(--teal);background:var(--card2)}
-select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%234a6480' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px}
-.qty-wrap{position:relative}
-.qty-input{font-family:'Bebas Neue',sans-serif;font-size:36px;text-align:center;padding:14px;letter-spacing:1px;color:var(--teal)}
-.qty-unit{position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
-.bal-warning{background:var(--amber-l);border:1px solid rgba(255,176,32,.3);border-radius:8px;padding:8px 12px;font-size:11px;color:var(--amber);font-weight:700;margin-top:6px;display:none}
+/* ── CARD ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:11px}
+.ct{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:12px}
 
-/* PHOTO SECTION */
-.photo-section{background:var(--card);border:1.5px dashed var(--border);border-radius:12px;overflow:hidden}
-.photo-placeholder{padding:24px 16px;text-align:center;cursor:pointer}
-.photo-placeholder-icon{font-size:36px;margin-bottom:8px}
-.photo-placeholder-text{font-size:14px;font-weight:800;color:var(--teal);margin-bottom:2px}
-.photo-placeholder-sub{font-size:11px;color:var(--muted);font-weight:600}
-.photo-preview{display:none;position:relative}
-.photo-preview img{width:100%;max-height:220px;object-fit:cover;display:block}
-.photo-retake{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:8px;padding:7px 12px;font-size:12px;font-weight:800;cursor:pointer;font-family:'Nunito',sans-serif}
-#photoInput,#photoInput2,#photoInput3{display:none}
-.photo-required-badge{display:inline-flex;align-items:center;gap:4px;background:var(--red-l);border:1px solid rgba(255,79,79,.2);border-radius:20px;padding:3px 9px;font-size:10px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:.5px;margin-left:6px}
+/* ── FORM ── */
+.fg{margin-bottom:10px}
+label{display:block;font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+input,select,textarea{width:100%;background:var(--s2);border:1.5px solid var(--border);border-radius:8px;color:var(--ink);font-family:'DM Sans',sans-serif;font-size:14px;padding:9px 11px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .18s}
+input:focus,select:focus{border-color:var(--orange);background:#fff}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='%239a9080' d='M5 6L0 0h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:28px}
+.r2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.r3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.mono-in{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;text-align:center}
 
-/* SUBMIT AREA */
-.submit-area{position:fixed;bottom:0;left:0;right:0;padding:14px 16px;background:var(--bg);border-top:1px solid var(--border);max-width:480px;margin:0 auto}
-.submit-btn{width:100%;padding:16px;border:none;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;cursor:pointer;transition:all .18s;display:flex;align-items:center;justify-content:center;gap:10px}
-.submit-btn:active{transform:scale(.97)}
-.submit-btn.teal{background:var(--teal);color:#000}
-.submit-btn.amber{background:var(--amber);color:#000}
-.submit-btn.red{background:var(--red);color:#fff}
-.submit-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+/* ── BUTTONS ── */
+.btn{padding:11px 16px;border:none;border-radius:9px;font-family:'DM Sans',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;transition:all .15s;width:100%}
+.btn:active{transform:scale(.97)}
+.btn-o{background:var(--orange);color:#fff}
+.btn-g{background:var(--green);color:#fff}
+.btn-b{background:var(--blue);color:#fff}
+.btn-r{background:var(--red);color:#fff}
+.btn-ghost{background:var(--s2);color:var(--ink);border:1px solid var(--border)}
+.btn-sm{padding:7px 12px;font-size:11px;width:auto;border-radius:7px}
 
-/* SUCCESS SCREEN */
-#s-success{background:var(--bg);align-items:center;justify-content:center;text-align:center;padding:32px 24px}
-.success-icon{font-size:72px;margin-bottom:16px;animation:pop .4s cubic-bezier(.34,1.56,.64,1)}
-@keyframes pop{from{transform:scale(0)}to{transform:scale(1)}}
-.success-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:1px;margin-bottom:8px}
-.success-sub{font-size:14px;color:var(--muted);font-weight:600;line-height:1.6;margin-bottom:24px}
-.wa-btn{display:flex;align-items:center;justify-content:center;gap:10px;background:#25d366;color:#fff;border:none;border-radius:12px;padding:16px 24px;font-family:'Nunito',sans-serif;font-size:15px;font-weight:800;cursor:pointer;width:100%;max-width:320px;margin:0 auto 12px;transition:all .15s}
-.wa-btn:active{transform:scale(.97)}
-.wa-icon{font-size:22px}
-.home-again-btn{background:var(--card);color:var(--ink);border:1.5px solid var(--border);border-radius:12px;padding:13px 24px;font-family:'Nunito',sans-serif;font-size:14px;font-weight:800;cursor:pointer;width:100%;max-width:320px;margin:0 auto;display:block}
+/* ── APPROVAL CARDS ── */
+.appr-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;animation:fu .22s ease}
+@keyframes fu{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.appr-hdr{padding:12px 13px;display:flex;align-items:flex-start;gap:10px;border-bottom:1px solid var(--border)}
+.appr-dot{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.appr-dot.pickup{background:var(--teal-l)}.appr-dot.install{background:var(--orange-l)}.appr-dot.return{background:var(--red-l)}
+.appr-info{flex:1;min-width:0}
+.appr-name{font-size:13px;font-weight:700;margin-bottom:2px}
+.appr-meta{font-size:10px;color:var(--muted);line-height:1.6}
+.appr-qty{font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;flex-shrink:0;line-height:1}
+.appr-qty.pickup{color:var(--teal)}.appr-qty.install{color:var(--orange)}.appr-qty.return{color:var(--red)}
+.appr-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 13px}
+.appr-approve{background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s}
+.appr-reject{background:var(--s2);color:var(--red);border:1px solid var(--red-l);border-radius:8px;padding:10px;font-family:'DM Sans',sans-serif;font-size:12px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:all .15s}
+.appr-approve:active,.appr-reject:active{transform:scale(.97)}
 
-/* LOADING OVERLAY */
-.loading-overlay{position:fixed;inset:0;background:rgba(15,25,35,.9);z-index:999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
-.loading-overlay.show{display:flex}
-.spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.loading-text{font-size:14px;font-weight:700;color:var(--muted)}
+/* ── STOCK TABLE ── */
+.tbl{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:11px}
+.th{padding:8px 12px;background:var(--ink);font-size:9px;font-weight:800;color:#888;text-transform:uppercase;letter-spacing:.6px;display:grid}
+.th>div:not(:first-child),.tr>div:not(:first-child),.tot>div:not(:first-child){text-align:right}
+.tr{padding:10px 12px;border-bottom:1px solid var(--border);display:grid;align-items:center}
+.tr:last-child{border-bottom:none}
+.tot{padding:10px 12px;background:var(--s2);border-top:1.5px solid var(--border);display:grid;font-size:12px;font-weight:800}
+.tc{font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:700;text-align:right}
+.tc.wh{color:var(--orange)}.tc.si{color:var(--blue)}.tc.in2{color:var(--green)}.tc.na{color:var(--border)}
 
-/* INFO BOX */
-.infobox{border-radius:10px;padding:10px 13px;font-size:12px;line-height:1.65;border:1px solid;margin-bottom:12px;font-weight:600}
-.ib-teal{background:var(--teal-l);border-color:rgba(0,212,170,.25);color:var(--teal)}
-.ib-amber{background:var(--amber-l);border-color:rgba(255,176,32,.25);color:var(--amber)}
+/* ── SUBCON BALANCE CARDS ── */
+.sc-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.sc-hdr{padding:12px 13px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+.sc-name{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:.3px}
+.sc-code{font-size:10px;color:var(--muted);font-weight:700;margin-top:1px}
+.sc-bal{text-align:right}
+.sc-bal-n{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;line-height:1;color:var(--teal)}
+.sc-bal-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.sc-stats{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.scs{padding:9px 13px;text-align:center}
+.scs+.scs{border-left:1px solid var(--border)}
+.scs-n{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;margin-bottom:2px}
+.scs-n.p{color:var(--orange)}.scs-n.i{color:var(--blue)}
+.scs-l{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
 
-/* ERROR */
-.field-error{font-size:11px;color:var(--red);font-weight:700;margin-top:4px;display:none}
-.field-error.show{display:block}
+/* ── QUOTATION CARDS ── */
+.qt-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:10px}
+.qt-hdr{padding:12px 13px;border-bottom:1px solid var(--border)}
+.qt-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px}
+.qt-no{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:800;letter-spacing:.3px}
+.qt-client{font-size:11px;color:var(--muted)}
+.qt-proj{font-size:12px;font-weight:600;margin-top:2px}
+.progress-wrap{margin-top:8px}
+.progress-lbl{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:4px}
+.progress-bar{height:5px;background:var(--s3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;background:var(--orange);border-radius:3px;transition:width .4s ease}
+.qt-kpis{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
+.qk{padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
+.qk:last-child{border-right:none}
+.qk-n{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+.qk-l{font-size:8px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px}
+.qt-cost{display:flex;justify-content:space-between;align-items:center;padding:9px 13px;background:var(--gold-l);border-top:1px solid rgba(138,100,0,.15)}
+.qc-lbl{font-size:9px;color:var(--gold);font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.qc-val{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;color:var(--gold)}
+.qc-val.good{color:var(--green)}.qc-val.bad{color:var(--red)}
+
+/* ── LOG ── */
+.log-list{display:flex;flex-direction:column;gap:7px}
+.li{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px}
+.ld{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.ld.in{background:var(--green-l)}.ld.pickup{background:var(--teal-l)}.ld.install{background:var(--orange-l)}.ld.returned{background:var(--red-l)}
+.lb{flex:1;min-width:0}
+.lm{font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ls{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:1px}
+.lq{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;flex-shrink:0}
+.lq.in{color:var(--green)}.lq.pickup{color:var(--teal)}.lq.install{color:var(--orange)}.lq.returned{color:var(--red)}
+
+/* ── REORDER ── */
+.ro-card{border-radius:12px;padding:13px;margin-bottom:9px;border:1px solid}
+.ro-ok{background:rgba(26,122,60,.07);border-color:rgba(26,122,60,.3)}
+.ro-warn{background:rgba(138,100,0,.07);border-color:rgba(138,100,0,.3)}
+.ro-crit{background:rgba(192,24,24,.09);border-color:rgba(192,24,24,.3)}
+.ro-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.ro-status{font-size:14px;font-weight:800}
+.ro-n{font-family:'Barlow Condensed',sans-serif;font-size:32px;font-weight:800;line-height:1}
+.ro-n.ok{color:var(--green)}.ro-n.warn{color:var(--gold)}.ro-n.crit{color:var(--red)}
+.ro-nl{font-size:9px;color:var(--muted);text-align:right;text-transform:uppercase;letter-spacing:.4px}
+.ro-body{font-size:11px;color:var(--muted);line-height:1.75}
+.ro-body strong{color:var(--ink);font-weight:700}
+.ir{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)}
+.ir:last-child{border-bottom:none}
+.ir-l{font-size:12px;font-weight:600}
+.ir-s{font-size:10px;color:var(--muted)}
+.ir-v{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700}
+
+/* ── CHIPS ── */
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin-bottom:11px;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{padding:5px 11px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--muted);font-size:10px;font-weight:800;cursor:pointer;white-space:nowrap;transition:all .15s;text-transform:uppercase;letter-spacing:.4px}
+.chip.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+/* ── INFOBOX ── */
+.ib{border-radius:9px;padding:10px 12px;margin-bottom:11px;font-size:11px;line-height:1.65;border:1px solid;font-weight:600}
+.ib-b{background:var(--blue-l);border-color:rgba(26,78,138,.2);color:var(--blue)}
+.ib-o{background:var(--orange-l);border-color:rgba(212,80,10,.2);color:var(--orange)}
+.ib-r{background:var(--red-l);border-color:rgba(192,24,24,.2);color:var(--red)}
+
+/* ── STOCKIN FORM ── */
+.si-avail{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:10px 13px;margin-bottom:11px;display:flex;align-items:center;justify-content:space-between}
+.si-avail-lbl{font-size:11px;color:var(--muted);font-weight:600}
+.si-avail-n{font-family:'JetBrains Mono',monospace;font-size:20px;font-weight:800;color:var(--orange)}
+
+/* MODAL */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:300;display:none;align-items:flex-end}
+.ov.open{display:flex}
+.modal{background:var(--surface);border-radius:18px 18px 0 0;border:1px solid var(--border);padding:16px 14px 28px;width:100%;max-height:88vh;overflow-y:auto;animation:su .26s ease}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.mh{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 13px}
+.mt{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;letter-spacing:.3px;margin-bottom:13px}
 
 /* TOAST */
-.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%) translateY(-60px);background:var(--red);color:#fff;padding:10px 18px;border-radius:100px;font-size:13px;font-weight:800;z-index:9999;transition:transform .28s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none}
-.toast.show{transform:translateX(-50%) translateY(0)}
+.tst{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-60px);background:var(--ink);color:#fff;padding:9px 18px;border-radius:100px;font-size:12px;font-weight:700;z-index:999;transition:transform .28s cubic-bezier(.34,1.56,.64,1);white-space:nowrap;pointer-events:none;max-width:92vw;text-align:center}
+.tst.on{transform:translateX(-50%) translateY(0)}
 
-body{max-width:480px;margin:0 auto}
+/* LOADING */
+.lov{position:fixed;inset:0;background:rgba(247,245,240,.85);z-index:400;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.lov.on{display:flex}
+.spin{width:38px;height:38px;border:3px solid var(--border);border-top-color:var(--orange);border-radius:50%;animation:sp .8s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.spin-tx{font-size:12px;font-weight:700;color:var(--muted)}
+
+.empty{text-align:center;padding:30px 16px;color:var(--muted)}
+.empty-i{font-size:28px;margin-bottom:6px}
+.divider{height:1px;background:var(--border);margin:12px 0}
+.mono{font-family:'JetBrains Mono',monospace}
 </style>
 </head>
 <body>
+<div class="tst" id="tst"></div>
+<div class="lov" id="lov"><div class="spin"></div><div class="spin-tx" id="spin-tx">Loading...</div></div>
 
-<!-- LOADING OVERLAY -->
-<div class="loading-overlay" id="loadingOverlay">
-  <div class="spinner"></div>
-  <div class="loading-text" id="loadingText">Sending...</div>
-</div>
-
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
-
-<!-- ═══ HOME SCREEN ═══ -->
-<div class="screen show" id="s-home">
-  <div class="home-top">
-    <div class="brand">ROLLTRACK PRO · Innovation AID</div>
-    <div class="company-badge">
-      <div class="company-icon">A</div>
-      <div class="company-name">Team Atik</div>
-    </div>
-    <div class="balance-card" id="balanceCard">
-      <div class="bal-label">Your Roll Balance / Baki Gulung Anda</div>
-      <div class="bal-num" id="balNum">—</div>
-      <div class="bal-sub">rolls available / gulung tersedia</div>
-      <div class="bal-stats">
-        <div class="bstat">
-          <div class="bstat-n pick" id="totalPickup">—</div>
-          <div class="bstat-l">📦 Picked Up</div>
-        </div>
-        <div class="bstat">
-          <div class="bstat-n inst" id="totalInstalled">—</div>
-          <div class="bstat-l">🔧 Installed</div>
-        </div>
-      </div>
-    </div>
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-top">
+    <div class="logo"><em>Roll</em>Track <span style="color:#fff">Pro</span><small>Admin</small></div>
+    <div class="hdr-date" id="hdrDate"></div>
   </div>
-
-  <div class="actions-title">What do you want to do? / Apa yang anda nak buat?</div>
-  <div class="actions">
-
-    <button class="action-btn pickup" onclick="goForm('pickup')">
-      <div class="action-icon">📦</div>
-      <div class="action-text">
-        <div class="action-main">PICKUP ROLLS</div>
-        <div class="action-malay">Ambil gulung dari gudang</div>
-      </div>
-      <div class="action-arrow">›</div>
-    </button>
-
-    <button class="action-btn install" onclick="goForm('install')">
-      <div class="action-icon">🔧</div>
-      <div class="action-text">
-        <div class="action-main">INSTALLATION REPORT</div>
-        <div class="action-malay">Laporan pasang membrane</div>
-      </div>
-      <div class="action-arrow">›</div>
-    </button>
-
-    <button class="action-btn return" onclick="goForm('return')">
-      <div class="action-icon">↩️</div>
-      <div class="action-text">
-        <div class="action-main">RETURN ROLLS</div>
-        <div class="action-malay">Pulang gulung ke gudang</div>
-      </div>
-      <div class="action-arrow">›</div>
-    </button>
-
+  <div class="kpis">
+    <div class="kpi"><div class="kn wh" id="k_wh">—</div><div class="kl">Warehouse</div></div>
+    <div class="kpi"><div class="kn si" id="k_site">—</div><div class="kl">On Site</div></div>
+    <div class="kpi"><div class="kn in" id="k_inst">—</div><div class="kl">Installed</div></div>
   </div>
 </div>
 
-<!-- ═══ PICKUP FORM ═══ -->
-<div class="screen form-screen" id="s-pickup">
-  <div class="form-header">
-    <div class="back-btn" onclick="goHome()">‹</div>
-    <div class="form-title-wrap">
-      <div class="form-title">PICKUP ROLLS</div>
-      <div class="form-sub">Ambil gulung dari gudang · Team Atik</div>
-    </div>
-    <div class="form-icon fi-teal">📦</div>
-  </div>
-  <div class="form-body">
-    <div class="infobox ib-teal">📋 Fill in how many rolls you are taking today.<br>Isi berapa gulung yang anda ambil hari ini.</div>
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab on"  onclick="gT('dash',this)">Dashboard</button>
+  <button class="tab"     onclick="gT('approve',this)">Approvals<span class="badge" id="pendBadge" style="display:none">0</span></button>
+  <button class="tab"     onclick="gT('stockin',this)">Stock In</button>
+  <button class="tab"     onclick="gT('subcons',this)">Subcons</button>
+  <button class="tab"     onclick="gT('quotations',this)">Projects</button>
+  <button class="tab"     onclick="gT('reorder',this)">Reorder</button>
+  <button class="tab"     onclick="gT('log',this)">Log</button>
+</div>
 
-    <div class="fgroup">
-      <label class="flabel">Date / Tarikh</label>
-      <input type="date" id="pu_date">
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Number of Rolls / Bilangan Gulung <span class="photo-required-badge">Required</span></label>
-      <div class="qty-wrap">
-        <input type="number" class="qty-input" id="pu_qty" placeholder="0" min="1" oninput="checkBalance()">
-        <div class="qty-unit">Rolls</div>
-      </div>
-      <div class="bal-warning" id="pu_bal_warn">⚠️ This exceeds your approved balance!</div>
-      <div class="field-error" id="pu_qty_err">Please enter number of rolls / Sila masukkan bilangan gulung</div>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Notes / Nota <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
-      <input type="text" id="pu_notes" placeholder="e.g. For 2 sites / Untuk 2 tapak">
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">
-        Photo of Rolls in Vehicle / Foto Gulung dalam Kenderaan
-        <span class="photo-required-badge">📷 Required</span>
-      </label>
-      <div class="photo-section" onclick="document.getElementById('photoInput').click()">
-        <div class="photo-placeholder" id="pu_placeholder">
-          <div class="photo-placeholder-icon">📷</div>
-          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
-          <div class="photo-placeholder-sub">Show rolls loaded in vehicle · Tunjuk gulung dalam kenderaan</div>
-        </div>
-        <div class="photo-preview" id="pu_preview">
-          <img id="pu_img" src="" alt="Photo">
-          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('pu')">🔄 Retake</button>
-        </div>
-      </div>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="handlePhoto(this,'pu')">
-      <div class="field-error" id="pu_photo_err">Photo is required / Foto diperlukan</div>
+<!-- ═══ DASHBOARD ═══ -->
+<div class="pg on" id="pg-dash">
+  <div class="sh" style="margin-top:8px"><h2>Stock Count</h2><span class="tag to">Live</span></div>
+  <div class="tbl">
+    <div class="th" style="grid-template-columns:1fr 46px 46px 46px"><div>Location</div><div>WH</div><div>Site</div><div>Inst</div></div>
+    <div id="dashTbody"></div>
+    <div class="tot" style="grid-template-columns:1fr 46px 46px 46px">
+      <div>TOTAL</div>
+      <div class="tc wh" id="tot_wh">0</div>
+      <div class="tc si" id="tot_si">0</div>
+      <div class="tc in2" id="tot_in">0</div>
     </div>
   </div>
-  <div class="submit-area">
-    <button class="submit-btn teal" id="pu_submit" onclick="submitPickup()">📦 SUBMIT PICKUP</button>
+  <div class="sh"><h2>Recent Activity</h2></div>
+  <div class="log-list" id="recLog"></div>
+</div>
+
+<!-- ═══ APPROVALS ═══ -->
+<div class="pg" id="pg-approve">
+  <div class="sh" style="margin-top:8px"><h2>Pending Approvals</h2><span class="tag tr2">Review</span></div>
+  <div class="ib ib-b">📋 Review each submission carefully. Stock only updates after your approval.</div>
+  <div id="pendingList"></div>
+</div>
+
+<!-- ═══ STOCK IN ═══ -->
+<div class="pg" id="pg-stockin">
+  <div class="sh" style="margin-top:8px"><h2>Receive from Supplier</h2><span class="tag tg">Stock In</span></div>
+  <div class="si-avail">
+    <span class="si-avail-lbl">Current Warehouse Stock</span>
+    <span class="si-avail-n" id="si_wh_cur">—</span>
+  </div>
+  <div class="card">
+    <div class="ct">📦 New Delivery</div>
+    <div class="fg"><label>Supplier Name</label><input type="text" id="si_sup" placeholder="e.g. Soprema Sdn Bhd" list="dl_sup"><datalist id="dl_sup"></datalist></div>
+    <div class="fg"><label>Membrane Type</label>
+      <select id="si_type"><option value="">— Select —</option><option>APP Modified Bitumen 3mm</option><option>APP Modified Bitumen 4mm</option><option>SBS Modified Bitumen</option><option>TPO Membrane</option><option>Torch-on Membrane 4mm</option><option>Other</option></select>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>DO / Invoice No.</label><input type="text" id="si_do" placeholder="DO-001"></div>
+      <div class="fg"><label>Unit Cost / Roll (RM)</label><input type="number" id="si_cost" class="mono-in" placeholder="0.00" step="0.01" min="0"></div>
+    </div>
+    <div class="fg"><label>Qty Received (Rolls)</label><input type="number" id="si_qty" class="mono-in" placeholder="0" min="1" style="font-size:22px;padding:12px"></div>
+    <button class="btn btn-g" onclick="doStockIn()">✅ &nbsp;Record Stock In</button>
   </div>
 </div>
 
-<!-- ═══ INSTALL FORM ═══ -->
-<div class="screen form-screen" id="s-install">
-  <div class="form-header">
-    <div class="back-btn" onclick="goHome()">‹</div>
-    <div class="form-title-wrap">
-      <div class="form-title">INSTALLATION REPORT</div>
-      <div class="form-sub">Laporan pasang membrane · Team Atik</div>
-    </div>
-    <div class="form-icon fi-amber">🔧</div>
+<!-- ═══ SUBCONS ═══ -->
+<div class="pg" id="pg-subcons">
+  <div class="sh" style="margin-top:8px"><h2>Subcon Balances</h2><span class="tag tt">Accountability</span></div>
+  <div id="subconList"></div>
+</div>
+
+<!-- ═══ QUOTATIONS / PROJECTS ═══ -->
+<div class="pg" id="pg-quotations">
+  <div class="sh" style="margin-top:8px"><h2>Projects & Costing</h2><span class="tag tgd">RM/sqft</span></div>
+  <button class="btn btn-o" style="margin-bottom:11px" onclick="openQtModal(null)">＋ &nbsp;Add New Quotation</button>
+  <div id="qtList"></div>
+</div>
+
+<!-- ═══ REORDER ═══ -->
+<div class="pg" id="pg-reorder">
+  <div class="sh" style="margin-top:8px"><h2>Reorder Planner</h2><span class="tag tb">Smart</span></div>
+  <div class="card">
+    <div class="ct">⚙️ Parameters</div>
+    <div class="ir"><div><div class="ir-l">Min Stock Buffer</div><div class="ir-s">Rolls to always keep</div></div><input type="number" id="cfg_min" style="width:80px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:6px 8px" placeholder="20"></div>
+    <div class="ir"><div><div class="ir-l">Supplier Lead Time</div><div class="ir-s">Days from order to delivery</div></div><input type="number" id="cfg_lead" style="width:80px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:6px 8px" placeholder="7"></div>
+    <div class="ir"><div><div class="ir-l">Avg Usage / Month</div><div class="ir-s">Rolls installed per month</div></div><input type="number" id="cfg_uso" style="width:80px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:6px 8px" placeholder="0"></div>
+    <div class="ir" style="border-bottom:none"><div><div class="ir-l">Reorder Qty</div><div class="ir-s">How many rolls to order</div></div><input type="number" id="cfg_roq" style="width:80px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:700;padding:6px 8px" placeholder="50"></div>
+    <button class="btn btn-b" style="margin-top:12px" onclick="saveRO()">💾 &nbsp;Save & Recalculate</button>
   </div>
-  <div class="form-body">
-    <div class="infobox ib-amber">📋 Report rolls installed at a site today.<br>Laporkan gulung yang dipasang di tapak hari ini.</div>
+  <div id="roOutput"></div>
+</div>
 
-    <div class="fgroup">
-      <label class="flabel">Quotation No. / No. Sebutan Harga</label>
-      <select id="in_quot">
-        <option value="">— Select / Pilih —</option>
-      </select>
-      <div class="field-error" id="in_quot_err">Please select quotation / Sila pilih sebutan harga</div>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Install Date / Tarikh Pasang</label>
-      <input type="date" id="in_date">
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Rolls Installed / Gulung Dipasang</label>
-      <div class="qty-wrap">
-        <input type="number" class="qty-input" id="in_qty" placeholder="0" min="1" style="color:var(--amber)" oninput="checkInstallQty()">
-        <div class="qty-unit">Rolls</div>
-      </div>
-      <div class="bal-warning" id="in_bal_warn" style="display:none">⚠️ More than your current balance! Check qty.<br>Melebihi baki anda! Semak kuantiti.</div>
-      <div class="field-error" id="in_qty_err">Please enter rolls installed / Sila masukkan bilangan gulung</div>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Area / Zone <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
-      <input type="text" id="in_area" placeholder="e.g. Blk 62, Level 3 / Blok 62, Aras 3">
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">
-        Photo of Installed Area / Foto Kawasan Dipasang
-        <span class="photo-required-badge">📷 Required</span>
-      </label>
-      <div class="photo-section" onclick="document.getElementById('photoInput2').click()">
-        <div class="photo-placeholder" id="in_placeholder">
-          <div class="photo-placeholder-icon">📷</div>
-          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
-          <div class="photo-placeholder-sub">Show installed membrane · Tunjuk membrane yang dipasang</div>
-        </div>
-        <div class="photo-preview" id="in_preview">
-          <img id="in_img" src="" alt="Photo">
-          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('in')">🔄 Retake</button>
-        </div>
-      </div>
-      <input type="file" id="photoInput2" accept="image/*" capture="environment" onchange="handlePhoto(this,'in')">
-      <div class="field-error" id="in_photo_err">Photo is required / Foto diperlukan</div>
-    </div>
+<!-- ═══ LOG ═══ -->
+<div class="pg" id="pg-log">
+  <div class="sh" style="margin-top:8px"><h2>Movement Log</h2></div>
+  <div class="chips">
+    <div class="chip on" onclick="setLF('all',this)">All</div>
+    <div class="chip" onclick="setLF('in',this)">Stock In</div>
+    <div class="chip" onclick="setLF('pickup',this)">Pickup</div>
+    <div class="chip" onclick="setLF('install',this)">Installed</div>
+    <div class="chip" onclick="setLF('returned',this)">Returns</div>
   </div>
-  <div class="submit-area">
-    <button class="submit-btn amber" id="in_submit" onclick="submitInstall()">🔧 SUBMIT REPORT</button>
+  <div class="log-list" id="fullLog"></div>
+</div>
+
+<!-- QUOTATION MODAL -->
+<div class="ov" id="qtOv">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt" id="qtMtitle">New Quotation</div>
+    <div class="fg"><label>Quotation No.</label><input type="text" id="qt_no" placeholder="QT-0326-054"></div>
+    <div class="fg"><label>Client Name</label><input type="text" id="qt_cli" placeholder="e.g. Desmond Khoo"></div>
+    <div class="fg"><label>Project Name</label><input type="text" id="qt_proj" placeholder="e.g. The Seed"></div>
+    <div class="r2">
+      <div class="fg"><label>Date</label><input type="date" id="qt_date"></div>
+      <div class="fg"><label>Membrane Type</label><input type="text" id="qt_mem" placeholder="e.g. 4mm Torch-On"></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>Rate RM/sqft</label><input type="number" id="qt_rate" placeholder="8.50" step="0.01"></div>
+      <div class="fg"><label>Total Sqft</label><input type="number" id="qt_sqft" placeholder="0" oninput="calcRolls()"></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>Est. Rolls (auto)</label><input type="number" id="qt_rolls" placeholder="0" class="mono-in" style="background:var(--s3)" readonly></div>
+      <div class="fg"><label>Total Value (RM)</label><input type="number" id="qt_val" placeholder="0"></div>
+    </div>
+    <div class="fg"><label>Status</label>
+      <select id="qt_stat"><option value="active">Active</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option></select>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeQtModal()">Cancel</button>
+      <button class="btn btn-o" style="flex:2" id="qtSaveBtn" onclick="saveQt()">💾 &nbsp;Save Quotation</button>
+    </div>
   </div>
 </div>
 
-<!-- ═══ RETURN FORM ═══ -->
-<div class="screen form-screen" id="s-return">
-  <div class="form-header">
-    <div class="back-btn" onclick="goHome()">‹</div>
-    <div class="form-title-wrap">
-      <div class="form-title">RETURN ROLLS</div>
-      <div class="form-sub">Pulang gulung ke gudang · Team Atik</div>
-    </div>
-    <div class="form-icon fi-red">↩️</div>
-  </div>
-  <div class="form-body">
-    <div class="infobox" style="background:var(--red-l);border-color:rgba(255,79,79,.25);color:var(--red)">📋 Returning rolls back to warehouse.<br>Memulangkan gulung ke gudang.</div>
-
-    <div class="fgroup">
-      <label class="flabel">Return Date / Tarikh Pulang</label>
-      <input type="date" id="re_date">
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Rolls Returned / Gulung Dipulangkan</label>
-      <div class="qty-wrap">
-        <input type="number" class="qty-input" id="re_qty" placeholder="0" min="1" style="color:var(--red)">
-        <div class="qty-unit">Rolls</div>
-      </div>
-      <div class="field-error" id="re_qty_err">Please enter qty / Sila masukkan kuantiti</div>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Condition / Keadaan</label>
-      <select id="re_cond">
-        <option value="good">Good / Baik</option>
-        <option value="damaged">Damaged / Rosak</option>
-        <option value="partial">Partially used / Guna separuh</option>
-      </select>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">Reason / Sebab</label>
-      <select id="re_reason">
-        <option value="excess">Excess rolls / Gulung lebihan</option>
-        <option value="cancelled">Job cancelled / Kerja dibatalkan</option>
-        <option value="damaged">Damaged / Rosak</option>
-        <option value="wrong">Wrong product / Produk salah</option>
-        <option value="other">Other / Lain-lain</option>
-      </select>
-    </div>
-
-    <div class="fgroup">
-      <label class="flabel">
-        Photo of Returned Rolls / Foto Gulung Dipulangkan
-        <span class="photo-required-badge">📷 Required</span>
-      </label>
-      <div class="photo-section" onclick="document.getElementById('photoInput3').click()">
-        <div class="photo-placeholder" id="re_placeholder">
-          <div class="photo-placeholder-icon">📷</div>
-          <div class="photo-placeholder-text">Tap to take photo / Ketuk untuk ambil gambar</div>
-          <div class="photo-placeholder-sub">Show rolls being returned · Tunjuk gulung yang dipulangkan</div>
-        </div>
-        <div class="photo-preview" id="re_preview">
-          <img id="re_img" src="" alt="Photo">
-          <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('re')">🔄 Retake</button>
-        </div>
-      </div>
-      <input type="file" id="photoInput3" accept="image/*" capture="environment" onchange="handlePhoto(this,'re')">
-      <div class="field-error" id="re_photo_err">Photo is required / Foto diperlukan</div>
+<!-- REJECT MODAL -->
+<div class="ov" id="rejOv">
+  <div class="modal">
+    <div class="mh"></div>
+    <div class="mt">Reject Submission</div>
+    <div class="fg"><label>Reason for rejection</label><input type="text" id="rej_reason" placeholder="e.g. Wrong qty, please resubmit"></div>
+    <div style="display:flex;gap:8px;margin-top:4px">
+      <button class="btn btn-ghost" style="flex:1" onclick="closeRejModal()">Cancel</button>
+      <button class="btn btn-r" style="flex:2" onclick="confirmReject()">❌ &nbsp;Reject</button>
     </div>
   </div>
-  <div class="submit-area">
-    <button class="submit-btn red" id="re_submit" onclick="submitReturn()">↩️ SUBMIT RETURN</button>
-  </div>
-</div>
-
-<!-- ═══ SUCCESS SCREEN ═══ -->
-<div class="screen" id="s-success">
-  <div class="success-icon" id="successIcon">✅</div>
-  <div class="success-title" id="successTitle">SUBMITTED!</div>
-  <div class="success-sub" id="successSub">Your submission has been sent.<br>Boss will review and approve.<br><br>Penghantaran anda telah dihantar.<br>Boss akan semak dan luluskan.</div>
-  <button class="wa-btn" id="waBtn" onclick="sendWhatsApp()">
-    <span class="wa-icon">💬</span>
-    Notify Boss via WhatsApp
-  </button>
-  <button class="home-again-btn" onclick="goHome()">← Back to Home / Kembali ke Utama</button>
 </div>
 
 <script>
-// ── CONFIG ──────────────────────────────────────────
-const API_URL     = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
-const SUBCON_CODE = 'SC01';
-const SUBCON_NAME = 'Team Atik';
-const BOSS_WA     = '60146938657';
+// ══════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════
+const API       = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
+const ROLL_SQFT = 80; // sqft per roll
 
-let photos   = { pu: null, in: null, re: null };
-let balance  = 0;
-let lastSubmission = {};
-let quotations = [];
+// ══════════════════════════════════════
+// STATE
+// ══════════════════════════════════════
+let D = { stock:{warehouse:0,avgCost:0}, subconBalances:[], pendingSubmissions:[], quotations:[], recentLog:[] };
+let cfg   = JSON.parse(localStorage.getItem('rt_cfg')||'{"min":20,"lead":7,"uso":0,"roq":50}');
+let sups  = JSON.parse(localStorage.getItem('rt_sups')||'[]');
+let logF  = 'all';
+let editQtId    = null;
+let rejectingId = null;
 
-// ── JSONP — works cross-origin from GitHub Pages ─────
+// ══════════════════════════════════════
+// JSONP
+// ══════════════════════════════════════
 function jsonp(params) {
   return new Promise((resolve, reject) => {
-    const cb  = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
-    const to  = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 15000);
+    const cb = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    const to = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 20000);
     window[cb] = data => { cleanup(); resolve(data); };
     function cleanup() {
       clearTimeout(to); delete window[cb];
-      const s = document.getElementById('jp_' + cb); if (s) s.remove();
+      const s = document.getElementById('jsonp_' + cb);
+      if (s) s.remove();
     }
     params.callback = cb;
-    const qs = Object.entries(params).map(([k,v]) => encodeURIComponent(k)+'='+encodeURIComponent(String(v))).join('&');
-    const s  = document.createElement('script');
-    s.id     = 'jp_' + cb;
-    s.src    = API_URL + '?' + qs;
-    s.onerror = () => { cleanup(); reject(new Error('network error')); };
-    document.head.appendChild(s);
+    const qs  = Object.entries(params).map(([k,v]) => encodeURIComponent(k)+'='+encodeURIComponent(String(v))).join('&');
+    const scr = document.createElement('script');
+    scr.id    = 'jsonp_' + cb;
+    scr.src   = API + '?' + qs;
+    scr.onerror = () => { cleanup(); reject(new Error('network error')); };
+    document.head.appendChild(scr);
   });
 }
 
-// ── INIT ─────────────────────────────────────────────
+// ══════════════════════════════════════
+// INIT
+// ══════════════════════════════════════
 window.addEventListener('load', () => {
-  const today = new Date().toISOString().split('T')[0];
-  ['pu_date','in_date','re_date'].forEach(id => { const e=document.getElementById(id); if(e) e.value=today; });
-  loadSubconData();
+  document.getElementById('hdrDate').textContent =
+    new Date().toLocaleDateString('en-MY',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  loadCfg();
+  loadData();
 });
 
-async function loadSubconData() {
+async function loadData() {
+  loading(true,'Loading...');
   try {
-    const d = await jsonp({ action:'getSubcon', code:SUBCON_CODE });
+    const d = await jsonp({ action:'getAll' });
     if (d.success) {
-      balance = d.balance || 0;
-      document.getElementById('balNum').textContent         = balance;
-      document.getElementById('totalPickup').textContent    = d.totalPickup    || 0;
-      document.getElementById('totalInstalled').textContent = d.totalInstalled || 0;
-      quotations = d.quotations || [];
-      const sel  = document.getElementById('in_quot');
-      sel.innerHTML = '<option value="">— Select / Pilih —</option>';
-      quotations.forEach(q => {
-        const o = document.createElement('option');
-        o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
-        sel.appendChild(o);
-      });
-    }
-  } catch(e) {
-    document.getElementById('balNum').textContent = balance;
-  }
-}
-
-// ── NAV ───────────────────────────────────────────────
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('show'));
-  document.getElementById(id).classList.add('show');
-  window.scrollTo(0,0);
-}
-function goHome()       { showScreen('s-home'); loadSubconData(); }
-function goForm(type)   { showScreen('s-' + type); }
-
-// ── PHOTO ─────────────────────────────────────────────
-function handlePhoto(input, prefix) {
-  const file = input.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => compressImage(e.target.result, compressed => {
-    photos[prefix] = compressed;
-    document.getElementById(prefix+'_placeholder').style.display = 'none';
-    document.getElementById(prefix+'_preview').style.display     = 'block';
-    document.getElementById(prefix+'_img').src                   = compressed;
-    document.getElementById(prefix+'_photo_err').classList.remove('show');
-  });
-  reader.readAsDataURL(file);
-}
-function retakePhoto(prefix) {
-  photos[prefix] = null;
-  document.getElementById(prefix+'_placeholder').style.display = 'block';
-  document.getElementById(prefix+'_preview').style.display     = 'none';
-  const m = {pu:'photoInput',in:'photoInput2',re:'photoInput3'};
-  document.getElementById(m[prefix]).value = '';
-}
-function compressImage(src, cb) {
-  const img = new Image();
-  img.onload = () => {
-    const c = document.createElement('canvas'), MAX = 1000;
-    let w = img.width, h = img.height;
-    if (w>MAX||h>MAX) { if(w>h){h=Math.round(h*MAX/w);w=MAX;}else{w=Math.round(w*MAX/h);h=MAX;} }
-    c.width=w; c.height=h; c.getContext('2d').drawImage(img,0,0,w,h);
-    cb(c.toDataURL('image/jpeg',0.7));
-  };
-  img.src = src;
-}
-
-// ── VALIDATION ────────────────────────────────────────
-function checkBalance() {}
-function checkInstallQty() {
-  const qty = parseInt(document.getElementById('in_qty').value)||0;
-  document.getElementById('in_bal_warn').style.display = (qty>balance&&balance>0)?'block':'none';
-}
-function showErr(id) { document.getElementById(id).classList.add('show'); }
-function hideErr(id) { document.getElementById(id).classList.remove('show'); }
-
-// ── SUBMIT PICKUP ─────────────────────────────────────
-async function submitPickup() {
-  let ok=true;
-  const qty=parseInt(document.getElementById('pu_qty').value);
-  if(!qty||qty<1){showErr('pu_qty_err');ok=false;}else hideErr('pu_qty_err');
-  if(!photos.pu){showErr('pu_photo_err');ok=false;}else hideErr('pu_photo_err');
-  if(!ok){showToast('Please fill all required fields');return;}
-  lastSubmission={type:'pickup',qty,date:document.getElementById('pu_date').value};
-  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
-    formType:'pickup',qty,date:document.getElementById('pu_date').value,
-    notes:document.getElementById('pu_notes').value,quotationNo:''},'pickup');
-}
-
-// ── SUBMIT INSTALL ────────────────────────────────────
-async function submitInstall() {
-  let ok=true;
-  const quot=document.getElementById('in_quot').value;
-  const qty=parseInt(document.getElementById('in_qty').value);
-  if(!quot){showErr('in_quot_err');ok=false;}else hideErr('in_quot_err');
-  if(!qty||qty<1){showErr('in_qty_err');ok=false;}else hideErr('in_qty_err');
-  if(!photos.in){showErr('in_photo_err');ok=false;}else hideErr('in_photo_err');
-  if(!ok){showToast('Please fill all required fields');return;}
-  if(qty>balance){showToast('⚠️ You only have '+balance+' rolls. Cannot claim '+qty+'.');return;}
-  lastSubmission={type:'install',qty,quot,date:document.getElementById('in_date').value};
-  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
-    formType:'install',quotationNo:quot,qty,date:document.getElementById('in_date').value,
-    notes:document.getElementById('in_area').value},'install');
-}
-
-// ── SUBMIT RETURN ─────────────────────────────────────
-async function submitReturn() {
-  let ok=true;
-  const qty=parseInt(document.getElementById('re_qty').value);
-  if(!qty||qty<1){showErr('re_qty_err');ok=false;}else hideErr('re_qty_err');
-  if(!photos.re){showErr('re_photo_err');ok=false;}else hideErr('re_photo_err');
-  if(!ok){showToast('Please fill all required fields');return;}
-  lastSubmission={type:'return',qty,date:document.getElementById('re_date').value};
-  await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
-    formType:'return',qty,date:document.getElementById('re_date').value,
-    notes:'Condition:'+document.getElementById('re_cond').value+'|Reason:'+document.getElementById('re_reason').value,
-    quotationNo:''},'return');
-}
-
-// ── SEND VIA JSONP ────────────────────────────────────
-async function send(payload, type) {
-  showLoading('Sending... / Menghantar...');
-  try {
-    const d = await jsonp({
-      action:      payload.action,
-      subconCode:  payload.subconCode,
-      subconName:  payload.subconName,
-      formType:    payload.formType,
-      quotationNo: payload.quotationNo || '',
-      qty:         String(payload.qty),
-      date:        payload.date  || '',
-      notes:       payload.notes || ''
-    });
-    hideLoading();
-    if(d.success){
-      photos[type==='pickup'?'pu':type==='install'?'in':'re']=null;
-      showSuccess(type);
+      D = d;
+      render();
     } else {
-      showToast('Error: '+(d.error||'Please try again'));
+      toast('Error loading data: ' + (d.error||''));
     }
   } catch(e) {
-    hideLoading();
-    showToast(navigator.onLine?'Connection error. Try again.':'No internet / Tiada internet.');
+    toast('Connection error. Pull down to refresh.');
+  }
+  loading(false);
+}
+
+// ══════════════════════════════════════
+// TABS
+// ══════════════════════════════════════
+function gT(name, el) {
+  document.querySelectorAll('.pg').forEach(p  => p.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('on'));
+  document.getElementById('pg-' + name).classList.add('on');
+  el.classList.add('on');
+  render();
+}
+
+// ══════════════════════════════════════
+// RENDER ALL
+// ══════════════════════════════════════
+function render() {
+  renderKPIs();
+  renderDash();
+  renderApprovals();
+  renderSubcons();
+  renderQuotations();
+  renderLog();
+  renderRO();
+  // Update si warehouse
+  const siWh = document.getElementById('si_wh_cur');
+  if (siWh) siWh.textContent = (D.stock.warehouse||0) + ' rolls';
+}
+
+function renderKPIs() {
+  const wh   = D.stock.warehouse || 0;
+  let tSite  = 0, tInst = 0;
+  (D.subconBalances||[]).forEach(s => {
+    tSite += Math.max(0, (s.totalPickup||0) - (s.totalInstalled||0));
+    tInst += s.totalInstalled||0;
+  });
+  ge('k_wh').textContent   = wh;
+  ge('k_site').textContent = tSite;
+  ge('k_inst').textContent = tInst;
+  ge('tot_wh').textContent = wh;
+  ge('tot_si').textContent = tSite;
+  ge('tot_in').textContent = tInst;
+}
+
+function renderDash() {
+  const tb = ge('dashTbody');
+  if (!tb) return;
+  const subs = D.subconBalances||[];
+  if (!subs.length) {
+    tb.innerHTML = `<div style="padding:14px;text-align:center;color:var(--muted);font-size:12px">No data yet</div>`;
+  } else {
+    tb.innerHTML = subs.map(s => {
+      const os = Math.max(0,(s.totalPickup||0)-(s.totalInstalled||0));
+      return `<div class="tr" style="grid-template-columns:1fr 46px 46px 46px">
+        <div style="font-size:12px;font-weight:600">${s.name||s.code}</div>
+        <div class="tc na">—</div><div class="tc si">${os}</div><div class="tc in2">${s.totalInstalled||0}</div>
+      </div>`;
+    }).join('') + `<div class="tr" style="grid-template-columns:1fr 46px 46px 46px;background:rgba(212,80,10,.04)">
+      <div style="font-size:12px;font-weight:700;color:var(--orange)">🏭 Warehouse</div>
+      <div class="tc wh">${D.stock.warehouse||0}</div><div class="tc na">—</div><div class="tc na">—</div>
+    </div>`;
+  }
+  // Recent log
+  const rec = ge('recLog');
+  const r5  = (D.recentLog||[]).slice(0,5);
+  rec.innerHTML = r5.length ? r5.map(rLI).join('') : `<div class="empty"><div class="empty-i">📊</div><p>No activity yet</p></div>`;
+}
+
+function renderApprovals() {
+  const el   = ge('pendingList');
+  const bdg  = ge('pendBadge');
+  const pend = (D.pendingSubmissions||[]);
+  if (bdg) {
+    bdg.style.display = pend.length ? 'inline-flex' : 'none';
+    bdg.textContent   = pend.length;
+  }
+  if (!el) return;
+  if (!pend.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-i">✅</div><p>No pending submissions</p></div>`;
+    return;
+  }
+  const icons = {pickup:'📦',install:'🔧',return:'↩️'};
+  const lbls  = {pickup:'Pickup',install:'Installation',return:'Return'};
+  el.innerHTML = pend.map(s => `
+    <div class="appr-card" id="appr_${s.id}">
+      <div class="appr-hdr">
+        <div class="appr-dot ${s.formType}">${icons[s.formType]||'📋'}</div>
+        <div class="appr-info">
+          <div class="appr-name">${s.subconName||s.subconCode} · ${lbls[s.formType]||s.formType}</div>
+          <div class="appr-meta">
+            ${s.quotationNo ? `Quotation: <strong>${s.quotationNo}</strong><br>` : ''}
+            Date: ${s.date||fmtTs(s.timestamp)} · Submitted: ${fmtTs(s.timestamp)}
+            ${s.notes ? `<br>Notes: ${s.notes}` : ''}
+          </div>
+        </div>
+        <div class="appr-qty ${s.formType}">${s.qty}</div>
+      </div>
+      <div class="appr-actions">
+        <button class="appr-approve" onclick="approve('${s.id}')">✅ Approve</button>
+        <button class="appr-reject"  onclick="openReject('${s.id}')">❌ Reject</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderSubcons() {
+  const el = ge('subconList');
+  if (!el) return;
+  const subs = D.subconBalances||[];
+  if (!subs.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-i">👷</div><p>No subcon data yet</p></div>`;
+    return;
+  }
+  el.innerHTML = subs.map(s => {
+    const bal     = s.balance||0;
+    const onsite  = Math.max(0,(s.totalPickup||0)-(s.totalInstalled||0));
+    const balColor= bal > 0 ? 'var(--teal)' : bal < 0 ? 'var(--red)' : 'var(--muted)';
+    return `<div class="sc-card">
+      <div class="sc-hdr">
+        <div><div class="sc-name">${s.name||s.code}</div><div class="sc-code">${s.code}</div></div>
+        <div class="sc-bal"><div class="sc-bal-n" style="color:${balColor}">${bal}</div><div class="sc-bal-l">Roll Balance</div></div>
+      </div>
+      <div class="sc-stats">
+        <div class="scs"><div class="scs-n p">${s.totalPickup||0}</div><div class="scs-l">📦 Total Picked Up</div></div>
+        <div class="scs"><div class="scs-n i">${s.totalInstalled||0}</div><div class="scs-l">🔧 Total Installed</div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderQuotations() {
+  const el = ge('qtList');
+  if (!el) return;
+  const qts = D.quotations||[];
+  if (!qts.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
+    return;
+  }
+  const avgCost = D.stock.avgCost||0;
+  el.innerHTML = qts.map(q => {
+    const inst      = q.rollsInstalled||0;
+    const est       = q.estRolls||0;
+    const sqft      = q.totalSqft||0;
+    const pct       = est > 0 ? Math.min(100, Math.round(inst/est*100)) : 0;
+    const matCost   = inst * avgCost;
+    const cpSqft    = sqft > 0 && inst > 0 && avgCost > 0 ? matCost/sqft : null;
+    const revSqft   = q.ratePerSqft||0;
+    const margin    = cpSqft !== null ? revSqft - cpSqft : null;
+    const statColors= {active:'tg',completed:'tb',upcoming:'tt'};
+    return `<div class="qt-card">
+      <div class="qt-hdr">
+        <div class="qt-top">
+          <div>
+            <div class="qt-no">${q.quotationNo}</div>
+            <div class="qt-client">${q.clientName||'—'} · ${q.projectName||''}</div>
+            ${sqft ? `<div class="qt-client" style="margin-top:2px">📐 ${fmtN(sqft)} sqft &nbsp;·&nbsp; RM ${fmtN(q.ratePerSqft)}/sqft</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
+            <span class="tag ${statColors[q.status]||'tg'}">${q.status}</span>
+            <button class="btn btn-ghost btn-sm" onclick="openQtModal('${q.quotationNo}')">Edit</button>
+          </div>
+        </div>
+        ${est > 0 ? `<div class="progress-wrap">
+          <div class="progress-lbl"><span>Installation progress</span><span style="font-weight:700;color:var(--orange)">${pct}%</span></div>
+          <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+        </div>` : ''}
+      </div>
+      <div class="qt-kpis">
+        <div class="qk"><div class="qk-n" style="color:var(--orange)">${inst}</div><div class="qk-l">Installed</div></div>
+        <div class="qk"><div class="qk-n" style="color:var(--muted)">${est||'—'}</div><div class="qk-l">Est. Total</div></div>
+        <div class="qk"><div class="qk-n" style="color:var(--green)">${sqft?fmtN(sqft):'—'}</div><div class="qk-l">Sqft</div></div>
+        <div class="qk"><div class="qk-n" style="color:var(--blue)">${avgCost>0?'RM '+avgCost.toFixed(0):'—'}</div><div class="qk-l">Avg/Roll</div></div>
+      </div>
+      ${cpSqft !== null ? `<div class="qt-cost">
+        <div><div class="qc-lbl">Material Cost/sqft</div><div class="qc-val">RM ${cpSqft.toFixed(2)}</div></div>
+        <div style="text-align:right"><div class="qc-lbl">Gross Margin/sqft</div><div class="qc-val ${margin>=0?'good':'bad'}">RM ${margin!==null?margin.toFixed(2):'—'}</div></div>
+      </div>` : `<div style="padding:9px 13px;font-size:11px;color:var(--muted)">Enter sqft + receive stock to see costing</div>`}
+    </div>`;
+  }).join('');
+}
+
+function renderLog() {
+  const el = ge('fullLog');
+  if (!el) return;
+  const all  = D.recentLog||[];
+  const show = logF === 'all' ? all : all.filter(l => l.formType === logF);
+  el.innerHTML = show.length ? show.map(rLI).join('') : `<div class="empty"><div class="empty-i">📋</div><p>No records here yet</p></div>`;
+}
+
+function setLF(f, el) {
+  logF = f;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  renderLog();
+}
+
+function rLI(m) {
+  const ICON = {in:'📦',pickup:'🚛',install:'🔧',returned:'↩️'};
+  const LBL  = {in:'Stock In',pickup:'Pickup',install:'Installed',returned:'Returned'};
+  const t    = m.formType||m.type||'in';
+  const ds   = fmtTs(m.timestamp||m.ts);
+  return `<div class="li"><div class="ld ${t}">${ICON[t]||'📋'}</div>
+    <div class="lb"><div class="lm">${m.subconName||m.label||'—'} · ${LBL[t]||t}</div>
+    <div class="ls">${m.quotationNo||''} ${m.notes||''} · ${ds}</div></div>
+    <div class="lq ${t}">${m.qty}</div></div>`;
+}
+
+// ══════════════════════════════════════
+// APPROVE / REJECT
+// ══════════════════════════════════════
+async function approve(id) {
+  loading(true, 'Approving...');
+  try {
+    const res = await jsonp({ action:'approveSubmission', submissionId:id });
+    loading(false);
+    if (res.success) {
+      toast('✅ Approved — stock updated');
+      // Remove from pending locally
+      D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== id);
+      const card = ge('appr_' + id);
+      if (card) card.remove();
+      await loadData(); // full refresh
+    } else {
+      toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
   }
 }
 
-// ── SUCCESS ───────────────────────────────────────────
-function showSuccess(type) {
-  const icons={pickup:'📦',install:'🔧',return:'↩️'};
-  const titles={pickup:'SUBMITTED!',install:'REPORTED!',return:'RETURNED!'};
-  document.getElementById('successIcon').textContent  = icons[type]||'✅';
-  document.getElementById('successTitle').textContent = titles[type]||'SUBMITTED!';
-  let sub='';
-  if(type==='pickup')  sub=lastSubmission.qty+' rolls pickup recorded.
-Boss will review shortly.
+function openReject(id) {
+  rejectingId = id;
+  ge('rej_reason').value = '';
+  ge('rejOv').classList.add('open');
+}
+function closeRejModal() { ge('rejOv').classList.remove('open'); rejectingId = null; }
 
-'+lastSubmission.qty+' gulung telah direkodkan.
-Boss akan semak tidak lama lagi.';
-  if(type==='install') sub=lastSubmission.qty+' rolls installed at '+lastSubmission.quot+'.
-Boss will review.
-
-'+lastSubmission.qty+' gulung dipasang di '+lastSubmission.quot+'.';
-  if(type==='return')  sub=lastSubmission.qty+' rolls return recorded.
-Boss will review.
-
-'+lastSubmission.qty+' gulung direkodkan untuk dipulangkan.';
-  document.getElementById('successSub').textContent = sub;
-  showScreen('s-success');
+async function confirmReject() {
+  if (!rejectingId) return;
+  const reason = ge('rej_reason').value.trim() || 'Rejected by admin';
+  closeRejModal();
+  loading(true, 'Rejecting...');
+  try {
+    const res = await jsonp({ action:'rejectSubmission', submissionId:rejectingId, reason });
+    loading(false);
+    if (res.success) {
+      toast('❌ Submission rejected');
+      D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== rejectingId);
+      await loadData();
+    } else {
+      toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
 }
 
-function sendWhatsApp() {
-  const lbl={pickup:'📦 PICKUP',install:'🔧 INSTALL REPORT',return:'↩️ RETURN'};
-  const t=lastSubmission.type, d=lastSubmission.date||'';
-  let msg='';
-  if(t==='pickup')  msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Qty: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
-  if(t==='install') msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Quotation: '+lastSubmission.quot+'
-Installed: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
-  if(t==='return')  msg=lbl[t]+'
-Subcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')
-Returned: '+lastSubmission.qty+' rolls
-Date: '+d+'
-
-Please review in RollTrack.';
-  window.open('https://wa.me/'+BOSS_WA+'?text='+encodeURIComponent(msg),'_blank');
+// ══════════════════════════════════════
+// STOCK IN
+// ══════════════════════════════════════
+async function doStockIn() {
+  const sup  = ge('si_sup').value.trim();
+  const type = ge('si_type').value;
+  const doNo = ge('si_do').value.trim();
+  const cost = parseFloat(ge('si_cost').value)||0;
+  const qty  = parseInt(ge('si_qty').value)||0;
+  if (!sup)    { toast('Enter supplier name'); return; }
+  if (qty < 1) { toast('Enter valid quantity'); return; }
+  loading(true,'Recording...');
+  try {
+    const res = await jsonp({ action:'stockIn', supplier:sup, membraneType:type, doNumber:doNo, costPerRoll:cost, qty });
+    loading(false);
+    if (res.success) {
+      toast(`✅ ${qty} rolls added to warehouse`);
+      if (!sups.includes(sup)) { sups.push(sup); localStorage.setItem('rt_sups', JSON.stringify(sups)); }
+      clr('si_sup','si_do','si_qty','si_cost');
+      ge('si_type').value = '';
+      await loadData();
+    } else {
+      toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
 }
 
-function showLoading(text) { document.getElementById('loadingText').textContent=text||'Sending...'; document.getElementById('loadingOverlay').classList.add('show'); }
-function hideLoading()      { document.getElementById('loadingOverlay').classList.remove('show'); }
-function showToast(msg)     { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+// ══════════════════════════════════════
+// QUOTATIONS
+// ══════════════════════════════════════
+function calcRolls() {
+  const sqft  = parseFloat(ge('qt_sqft').value)||0;
+  const rolls = sqft > 0 ? Math.ceil(sqft / ROLL_SQFT) : 0;
+  ge('qt_rolls').value = rolls || '';
+}
+
+function openQtModal(id) {
+  editQtId = id;
+  ge('qtMtitle').textContent  = id ? 'Edit Quotation' : 'New Quotation';
+  ge('qtSaveBtn').textContent = id ? '💾  Update' : '💾  Save Quotation';
+  if (id) {
+    const q = (D.quotations||[]).find(x => x.quotationNo === id);
+    if (q) {
+      ge('qt_no').value   = q.quotationNo||'';
+      ge('qt_cli').value  = q.clientName||'';
+      ge('qt_proj').value = q.projectName||'';
+      ge('qt_date').value = q.date||'';
+      ge('qt_mem').value  = q.membraneType||'';
+      ge('qt_rate').value = q.ratePerSqft||'';
+      ge('qt_sqft').value = q.totalSqft||'';
+      ge('qt_rolls').value= q.estRolls||'';
+      ge('qt_val').value  = q.totalValue||'';
+      ge('qt_stat').value = q.status||'active';
+    }
+  } else {
+    clr('qt_no','qt_cli','qt_proj','qt_mem','qt_rate','qt_sqft','qt_rolls','qt_val');
+    ge('qt_date').value = new Date().toISOString().split('T')[0];
+    ge('qt_stat').value = 'active';
+  }
+  ge('qtOv').classList.add('open');
+}
+function closeQtModal() { ge('qtOv').classList.remove('open'); editQtId = null; }
+
+async function saveQt() {
+  const no = ge('qt_no').value.trim();
+  if (!no) { toast('Enter quotation number'); return; }
+  const sqft = parseFloat(ge('qt_sqft').value)||0;
+  loading(true,'Saving...');
+  try {
+    const res = await jsonp({
+      action:'addQuotation',
+      quotationNo: no,
+      date:        ge('qt_date').value,
+      clientName:  ge('qt_cli').value.trim(),
+      projectName: ge('qt_proj').value.trim(),
+      membraneType:ge('qt_mem').value.trim(),
+      ratePerSqft: parseFloat(ge('qt_rate').value)||0,
+      totalSqft:   sqft,
+      membraneValue: (sqft*(parseFloat(ge('qt_rate').value)||0)).toFixed(2),
+      totalValue:  parseFloat(ge('qt_val').value)||0,
+      status:      ge('qt_stat').value
+    });
+    loading(false);
+    if (res.success) {
+      toast(`✅ Quotation ${no} saved`);
+      closeQtModal();
+      await loadData();
+    } else {
+      toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
+}
+
+// ══════════════════════════════════════
+// REORDER
+// ══════════════════════════════════════
+function loadCfg() {
+  ge('cfg_min').value  = cfg.min||20;
+  ge('cfg_lead').value = cfg.lead||7;
+  ge('cfg_uso').value  = cfg.uso||'';
+  ge('cfg_roq').value  = cfg.roq||50;
+}
+function saveRO() {
+  cfg = {
+    min:  parseInt(ge('cfg_min').value)||20,
+    lead: parseInt(ge('cfg_lead').value)||7,
+    uso:  parseFloat(ge('cfg_uso').value)||0,
+    roq:  parseInt(ge('cfg_roq').value)||50
+  };
+  localStorage.setItem('rt_cfg', JSON.stringify(cfg));
+  toast('✅ Saved');
+  renderRO();
+}
+
+function renderRO() {
+  const el = ge('roOutput');
+  if (!el) return;
+  const uso  = cfg.uso > 0 ? cfg.uso : 0;
+  const wh   = D.stock.warehouse||0;
+  const min  = cfg.min||20;
+  const lead = cfg.lead||7;
+  const roq  = cfg.roq||50;
+
+  if (uso <= 0) {
+    el.innerHTML = `<div class="ib ib-o">⚠️ Set <strong>Avg Usage / Month</strong> above and click Save to see the prediction.</div>`;
+    return;
+  }
+
+  const upd         = uso / 30;
+  const reorderPt   = min + (lead * upd);
+  const daysToOrder = Math.max(0, (wh - reorderPt) / upd);
+  const daysLeft    = Math.max(0, (wh - min) / upd);
+  const orderDate   = new Date();
+  orderDate.setDate(orderDate.getDate() + Math.floor(daysToOrder));
+
+  let cls, icon, msg, dc;
+  if (wh <= reorderPt)      { cls='ro-crit'; icon='🔴'; msg='ORDER NOW';  dc='crit'; }
+  else if (daysToOrder <= 7){ cls='ro-warn'; icon='⚠️'; msg='ORDER SOON'; dc='warn'; }
+  else                      { cls='ro-ok';   icon='✅'; msg='STOCK OK';   dc='ok';   }
+
+  // Pipeline demand
+  const active   = (D.quotations||[]).filter(q => q.status==='active'||q.status==='upcoming');
+  const pipeNeed = active.reduce((a,q) => a + Math.max(0,(q.estRolls||0)-(q.rollsInstalled||0)), 0);
+  const shortfall= Math.max(0, pipeNeed - wh);
+
+  el.innerHTML = `
+  <div class="ro-card ${cls}">
+    <div class="ro-top">
+      <div><div class="ro-status">${icon} ${msg}</div><div style="font-size:10px;color:var(--muted);margin-top:2px">Current stock status</div></div>
+      <div><div class="ro-n ${dc}">${Math.round(daysToOrder)}</div><div class="ro-nl">days to reorder</div></div>
+    </div>
+    <div class="ro-body">
+      <strong>${wh} rolls</strong> in warehouse &nbsp;·&nbsp; <strong>${Math.round(upd*10)/10}/day</strong> avg usage<br>
+      Reorder point: <strong>${Math.round(reorderPt)} rolls</strong> &nbsp;·&nbsp; Lead time: <strong>${lead} days</strong><br>
+      ${daysToOrder > 0 ? `Order by: <strong>${orderDate.toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'})}</strong>` : '<strong>Place order immediately</strong>'}
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">📊 Stock Projection</div>
+    <div class="ir"><div><div class="ir-l">Current Warehouse</div></div><div class="ir-v" style="color:var(--orange)">${wh} rolls</div></div>
+    <div class="ir"><div><div class="ir-l">Safety Buffer</div></div><div class="ir-v">${min} rolls</div></div>
+    <div class="ir"><div><div class="ir-l">Days of Usable Stock</div></div><div class="ir-v" style="color:${daysLeft<14?'var(--red)':'var(--green)'}">${Math.round(daysLeft)} days</div></div>
+    <div class="ir" style="border-bottom:none"><div><div class="ir-l">After Reorder (+${roq} rolls)</div></div><div class="ir-v" style="color:var(--green)">${wh+roq} rolls</div></div>
+  </div>
+  ${active.length ? `<div class="card">
+    <div class="ct">🏗️ Pipeline Demand</div>
+    ${active.map(q => {
+      const rem = Math.max(0,(q.estRolls||0)-(q.rollsInstalled||0));
+      return `<div class="ir"><div><div class="ir-l">${q.quotationNo}</div><div class="ir-s">${q.projectName||q.clientName||''} · ${q.status}</div></div><div class="ir-v" style="color:${rem>wh?'var(--red)':'var(--green)'}">${rem} rolls left</div></div>`;
+    }).join('')}
+    <div class="ir" style="border-top:1.5px solid var(--border);padding-top:10px;border-bottom:none">
+      <div><div class="ir-l" style="font-weight:800">Total Still Needed</div></div>
+      <div class="ir-v" style="font-size:14px;color:${shortfall>0?'var(--red)':'var(--green)'}">${pipeNeed} rolls</div>
+    </div>
+    ${shortfall > 0 ? `<div class="ib ib-r" style="margin-top:8px;margin-bottom:0">🔴 <strong>${shortfall} roll shortfall</strong> — order at least ${shortfall+min} rolls.</div>` : `<div class="ib ib-b" style="margin-top:8px;margin-bottom:0">✅ Current stock covers all active projects.</div>`}
+  </div>` : ''}`;
+}
+
+// ══════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════
+const ge   = id => document.getElementById(id);
+const fmtN = n  => n ? Number(n).toLocaleString('en-MY') : '—';
+function fmtTs(ts) {
+  if (!ts) return '—';
+  try {
+    const d = new Date(ts);
+    return d.toLocaleDateString('en-MY',{day:'numeric',month:'short'}) + ' ' +
+           d.toLocaleTimeString('en-MY',{hour:'2-digit',minute:'2-digit'});
+  } catch(e) { return String(ts).substring(0,10); }
+}
+function clr(...ids) { ids.forEach(id => { const e=ge(id); if(e) e.value=''; }); }
+function loading(on, txt) {
+  ge('lov').classList.toggle('on', on);
+  if (txt) ge('spin-tx').textContent = txt;
+}
+function toast(msg) {
+  const t = ge('tst');
+  t.textContent = msg;
+  t.classList.add('on');
+  setTimeout(() => t.classList.remove('on'), 2800);
+}
 </script>
 </body>
 </html>
