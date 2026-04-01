@@ -295,6 +295,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="pg" id="pg-approve">
   <div class="sh" style="margin-top:8px"><h2>Pending Approvals</h2><span class="tag tr2">Review</span></div>
   <div class="ib ib-b">📋 Review each submission carefully. Stock only updates after your approval.</div>
+  <div id="approveAllWrap"></div>
   <div id="pendingList"></div>
 </div>
 
@@ -669,6 +670,12 @@ function renderApprovals() {
     bdg.style.display = pend.length ? 'inline-flex' : 'none';
     bdg.textContent   = pend.length;
   }
+  const aaWrap = ge('approveAllWrap');
+  if (aaWrap) {
+    aaWrap.innerHTML = pend.length >= 2
+      ? `<button class="btn btn-g" style="margin-bottom:10px" onclick="approveAll()">✓ Approve All Pending (${pend.length} submissions)</button>`
+      : '';
+  }
   if (!el) return;
   if (!pend.length) {
     el.innerHTML = `<div class="empty"><div class="empty-i">✅</div><p>No pending submissions</p></div>`;
@@ -838,6 +845,24 @@ async function approve(id, formType) {
     loading(false);
     toast('Connection error');
   }
+}
+
+async function approveAll() {
+  const pend = D.pendingSubmissions || [];
+  if (pend.length < 2) return;
+  if (!confirm('Approve all ' + pend.length + ' pending submissions?')) return;
+  const total = pend.length;
+  let ok = 0, fail = 0;
+  for (let i = 0; i < pend.length; i++) {
+    loading(true, 'Approving ' + (i+1) + ' of ' + total + '...');
+    try {
+      const res = await jsonp({ action:'approveSubmission', submissionId: pend[i].id });
+      if (res.success) ok++; else fail++;
+    } catch(e) { fail++; }
+  }
+  loading(false);
+  toast('✅ ' + ok + ' approved' + (fail ? ', ' + fail + ' failed' : ''));
+  await loadData();
 }
 
 let rejectingFormType = null;
