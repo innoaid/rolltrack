@@ -74,6 +74,9 @@ function doGet(e) {
       case 'markPayment':
         result = markPayment(p);
         break;
+      case 'getAllSubmissions':
+        result = getAllSubmissions();
+        break;
       case 'getQuotations':
         result = { success: true, quotations: getQuotations() };
         break;
@@ -253,6 +256,29 @@ function getPendingSubmissions() {
     });
   }
   return result;
+}
+
+function getAllSubmissions() {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: true, submissions: [] };
+  var rows = sheetToObjects(sheet);
+  var result = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    result.push({
+      id:           r.SubmissionID   || '',
+      timestamp:    r.Timestamp      || '',
+      subconCode:   r.SubconCode     || '',
+      subconName:   r.SubconName     || '',
+      formType:     r.FormType       || '',
+      quotationNo:  r.QuotationNo    || '',
+      qty:          Number(r.Qty)    || 0,
+      activityDate: r.ActivityDate   || '',
+      notes:        r.Notes          || '',
+      status:       r.Status         || ''
+    });
+  }
+  return { success: true, submissions: result };
 }
 
 function submitSubconForm(p) {

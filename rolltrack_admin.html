@@ -246,8 +246,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="hdr">
   <div class="hdr-top">
     <div class="logo"><em>Roll</em>Track <span style="color:#fff">Pro</span><small>Admin</small></div>
-    <div style="display:flex;align-items:center;gap:6px">
-      <input type="month" id="monthPicker" style="background:none;border:1px solid #444;border-radius:8px;padding:3px 6px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none;width:120px" onchange="onMonthChange(this.value)">
+    <div style="display:flex;align-items:center;gap:4px">
+      <input type="date" id="filterFrom" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
+      <span style="color:#666;font-size:10px">to</span>
+      <input type="date" id="filterTo" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
       <button onclick="loadData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--muted)" title="Refresh data">🔄</button>
     </div>
   </div>
@@ -285,7 +287,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <div class="sh"><h2>Recent Activity</h2></div>
   <div class="log-list" id="recLog"></div>
-  <button class="btn btn-b" style="margin-top:14px" onclick="generateMonthlyReport()">📊 &nbsp;Generate Monthly Report</button>
+  <button class="btn btn-b" style="margin-top:14px" onclick="generatePerfReport()">📊 &nbsp;Generate Report</button>
 </div>
 
 <!-- ═══ APPROVALS ═══ -->
@@ -486,7 +488,9 @@ let payData     = [];
 let payFilter   = 'all';
 let payingRecord = null;
 const now_ = new Date();
-let filterMonth = { month: now_.getMonth(), year: now_.getFullYear() };
+let filterFrom = new Date(now_.getFullYear(), now_.getMonth(), 1);
+let filterTo   = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
+let allSubmissions = [];
 
 // ══════════════════════════════════════
 // JSONP
@@ -514,33 +518,40 @@ function jsonp(params) {
 // ══════════════════════════════════════
 // INIT
 // ══════════════════════════════════════
+function toDateStr(d) { return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
 window.addEventListener('load', () => {
-  const mp = ge('monthPicker');
-  mp.value = filterMonth.year + '-' + String(filterMonth.month+1).padStart(2,'0');
+  ge('filterFrom').value = toDateStr(filterFrom);
+  ge('filterTo').value   = toDateStr(filterTo);
   loadCfg();
   loadData();
 });
 
-function onMonthChange(val) {
-  if (!val) return;
-  const [y,m] = val.split('-').map(Number);
-  filterMonth = { month: m-1, year: y };
+function onDateRangeChange() {
+  const f = ge('filterFrom').value;
+  const t = ge('filterTo').value;
+  if (f) filterFrom = new Date(f + 'T00:00:00');
+  if (t) filterTo   = new Date(t + 'T23:59:59');
   render();
   if (payData.length) renderPayments();
 }
 
-function inFilterMonth(ts) {
+function inDateRange(ts) {
   const d = parseDate(ts);
   if (!d) return false;
-  return d.getMonth() === filterMonth.month && d.getFullYear() === filterMonth.year;
+  return d >= filterFrom && d <= new Date(filterTo.getFullYear(), filterTo.getMonth(), filterTo.getDate(), 23, 59, 59);
 }
 
 async function loadData() {
   loading(true,'Loading...');
   try {
-    const d = await jsonp({ action:'getAll' });
+    const [d, subRes] = await Promise.all([
+      jsonp({ action:'getAll' }),
+      jsonp({ action:'getAllSubmissions' })
+    ]);
     if (d.success) {
       D = d;
+      allSubmissions = (subRes.success && subRes.submissions) ? subRes.submissions : [];
       render();
     } else {
       toast('Error loading data: ' + (d.error||''));
@@ -615,7 +626,7 @@ function renderDash() {
   }
   // Recent log (filtered by month)
   const rec = ge('recLog');
-  const r5  = (D.recentLog||[]).filter(l => inFilterMonth(l.timestamp||l.ts)).slice(0,10);
+  const r5  = (D.recentLog||[]).filter(l => inDateRange(l.timestamp||l.ts)).slice(0,10);
   rec.innerHTML = r5.length ? r5.map(rLI).join('') : `<div class="empty"><div class="empty-i">📊</div><p>No activity this month</p></div>`;
 }
 
@@ -694,7 +705,7 @@ function renderQuotations() {
   if (!el) return;
   const raw = (D.quotations||[]).filter(q => {
     if (q.status === 'active' || q.status === 'upcoming') return true;
-    return inFilterMonth(q.date);
+    return inDateRange(q.date);
   });
   if (!raw.length) {
     el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations this month. Add one above.</p></div>`;
@@ -751,7 +762,7 @@ function renderQuotations() {
 function renderLog() {
   const el = ge('fullLog');
   if (!el) return;
-  const all  = (D.recentLog||[]).filter(l => inFilterMonth(l.timestamp||l.ts));
+  const all  = (D.recentLog||[]).filter(l => inDateRange(l.timestamp||l.ts));
   const show = logF === 'all' ? all : all.filter(l => l.formType === logF);
   el.innerHTML = show.length ? show.map(rLI).join('') : `<div class="empty"><div class="empty-i">📋</div><p>No records this month</p></div>`;
 }
@@ -1188,7 +1199,7 @@ function renderPayments() {
 
   // Summary (filtered by month)
   const sumEl = ge('pay-summary');
-  const monthFiltered = payData.filter(p => inFilterMonth(p['CreatedAt']));
+  const monthFiltered = payData.filter(p => inDateRange(p['CreatedAt']));
   if (sumEl) {
     let totalOwed = 0, totalPaid = 0;
     monthFiltered.forEach(p => {
@@ -1602,31 +1613,33 @@ function generateReport() {
 }
 
 // ══════════════════════════════════════
-// MONTHLY PERFORMANCE REPORT
+// PERFORMANCE REPORT
 // ══════════════════════════════════════
-function generateMonthlyReport() {
-  const mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const monthLabel = mNames[filterMonth.month] + ' ' + filterMonth.year;
+function generatePerfReport() {
+  const fromStr = ge('filterFrom').value;
+  const toStr   = ge('filterTo').value;
+  const rangeLabel = fromStr + ' to ' + toStr;
   const genDate = new Date().toLocaleString('en-MY',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const avgCost = (D.stock && D.stock.avgCost) || 0;
 
-  // Filter submissions for selected month (approved installs)
-  const monthSubs = (D.recentLog||[]).filter(l => {
-    const t = l.formType || l.type || '';
-    return t === 'install' && inFilterMonth(l.timestamp || l.ts);
+  // Filter approved install submissions by activityDate within date range
+  const rangeSubs = allSubmissions.filter(s => {
+    if (String(s.status||'').toLowerCase() !== 'approved') return false;
+    if (String(s.formType||'').toLowerCase() !== 'install') return false;
+    return inDateRange(s.activityDate || s.timestamp);
   });
-  const totalRolls = monthSubs.reduce((s, l) => s + (Number(l.qty)||0), 0);
+  const totalRolls = rangeSubs.reduce((s, r) => s + (Number(r.qty)||0), 0);
   const totalSqft = totalRolls * ROLL_SQFT;
   const avgSqftPerRoll = totalRolls > 0 ? (totalSqft / totalRolls).toFixed(0) : 0;
 
-  // Active projects this month
+  // Active projects
   const activeQts = (D.quotations||[]).filter(q => q.status === 'active' || q.status === 'upcoming');
   const totalContractValue = activeQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
 
-  // Labour cost from payments in this month
-  const monthPay = payData.filter(p => inFilterMonth(p['CreatedAt']));
+  // Labour cost from payments in date range
+  const rangePay = payData.filter(p => inDateRange(p['CreatedAt']));
   let labourCost = 0;
-  monthPay.forEach(p => {
+  rangePay.forEach(p => {
     if (p['Payment1Status'] === 'paid') labourCost += Number(p['Payment1Amount']||0);
     if (p['Payment2Status'] === 'paid') labourCost += Number(p['Payment2Amount']||0);
   });
@@ -1640,17 +1653,16 @@ function generateMonthlyReport() {
   const grossMargin = totalContractValue > 0 ? (grossProfit / totalContractValue * 100) : 0;
   const revPerSqft = totalSqft > 0 ? (totalContractValue / totalSqft) : 0;
 
-  // Subcon breakdown
+  // Subcon breakdown from actual submissions
   const scMap = {};
-  monthSubs.forEach(l => {
-    const name = l.subconName || l.subconCode || l.label || '—';
+  rangeSubs.forEach(s => {
+    const name = s.subconName || s.subconCode || '—';
     if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
-    const q = Number(l.qty)||0;
+    const q = Number(s.qty)||0;
     scMap[name].rolls += q;
     scMap[name].sqft += q * ROLL_SQFT;
   });
-  // Add labour costs per subcon from payments
-  monthPay.forEach(p => {
+  rangePay.forEach(p => {
     const name = p['SubconName'] || p['SubconCode'] || '?';
     if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
     if (p['Payment1Status'] === 'paid') scMap[name].cost += Number(p['Payment1Amount']||0);
@@ -1658,7 +1670,7 @@ function generateMonthlyReport() {
   });
   const scRows = Object.entries(scMap).map(([name, d]) =>
     `<tr><td>${name}</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
-  ).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No subcon activity this month</td></tr>';
+  ).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No subcon activity in this period</td></tr>';
 
   // Project breakdown
   const projRows = activeQts.map(q => {
@@ -1671,7 +1683,7 @@ function generateMonthlyReport() {
 
   const html = `<!DOCTYPE html>
 <html lang="en"><head><meta charset="UTF-8">
-<title>Monthly Report — ${monthLabel}</title>
+<title>Performance Report — ${rangeLabel}</title>
 <style>
 body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;padding:32px;max-width:900px;margin:0 auto;line-height:1.6}
 h1{font-size:22px;margin:0 0 2px;font-weight:900}
@@ -1693,8 +1705,8 @@ tr:nth-child(even) td{background:#fafafa}
 @media print{.actions{display:none}body{padding:16px}}
 </style></head><body>
 <h1>Innovation AID Sdn Bhd</h1>
-<div class="subtitle">Monthly Performance Report</div>
-<div class="gen">Month: <strong>${monthLabel}</strong> &nbsp;|&nbsp; Generated: ${genDate}</div>
+<div class="subtitle">Performance Report: ${rangeLabel}</div>
+<div class="gen">Generated: ${genDate}</div>
 
 <h2>1. Installation Summary</h2>
 <div class="kpi-grid">
