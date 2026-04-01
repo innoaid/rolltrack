@@ -1634,11 +1634,14 @@ function generatePerfReport() {
   const totalSqft = totalRolls * ROLL_SQFT;
   const avgSqftPerRoll = totalRolls > 0 ? (totalSqft / totalRolls).toFixed(0) : 0;
 
-  // Contract value from completed quotations
-  const totalContractValue = completedQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+  // Quotations that have approved installs in the date range
+  const activeInRange = new Set(rangeSubs.map(s => s.quotationNo));
 
-  // Labour cost = TotalAmount from ALL payments matching completed quotations (no date filter)
-  const completedPay = payData.filter(p => completedNos.has(p['QuotationNo']));
+  // Contract value from completed quotations with installs in date range
+  const totalContractValue = completedQts.filter(q => activeInRange.has(q.quotationNo)).reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+
+  // Labour cost = TotalAmount from payments for completed quotations with installs in date range
+  const completedPay = payData.filter(p => completedNos.has(p['QuotationNo']) && activeInRange.has(p['QuotationNo']));
   let labourCost = 0;
   let labourPaid = 0;
   completedPay.forEach(p => {
@@ -1725,7 +1728,7 @@ tr:nth-child(even) td{background:#fafafa}
   <div class="kpi-row"><span class="kpi-label">Total Sqft Installed</span><span class="kpi-val">${fmtN(totalSqft)} sqft</span></div>
   <div class="kpi-row"><span class="kpi-label">Total Rolls Used</span><span class="kpi-val">${fmtN(totalRolls)} rolls</span></div>
   <div class="kpi-row"><span class="kpi-label">Average Sqft per Roll</span><span class="kpi-val">${avgSqftPerRoll} sqft/roll</span></div>
-  <div class="kpi-row"><span class="kpi-label">Completed Projects</span><span class="kpi-val">${completedQts.length}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Completed Projects</span><span class="kpi-val">${activeInRange.size}</span></div>
 </div>
 
 <h2>2. Cost Analysis</h2>
