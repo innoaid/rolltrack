@@ -656,11 +656,14 @@ function renderSubcons() {
 function renderQuotations() {
   const el = ge('qtList');
   if (!el) return;
-  const qts = D.quotations||[];
-  if (!qts.length) {
+  const raw = D.quotations||[];
+  if (!raw.length) {
     el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
     return;
   }
+  // Sort: active/upcoming first, completed last
+  const order = {active:0, upcoming:1, completed:2, complete:2};
+  const qts = raw.slice().sort((a,b) => (order[a.status]||0) - (order[b.status]||0));
   const avgCost = D.stock.avgCost||0;
   el.innerHTML = qts.map(q => {
     const inst      = q.rollsInstalled||0;
@@ -671,8 +674,10 @@ function renderQuotations() {
     const cpSqft    = sqft > 0 && inst > 0 && avgCost > 0 ? matCost/sqft : null;
     const revSqft   = q.ratePerSqft||0;
     const margin    = cpSqft !== null ? revSqft - cpSqft : null;
-    const statColors= {active:'tg',completed:'tb',upcoming:'tt'};
-    return `<div class="qt-card">
+    const statColors= {active:'tg',completed:'tb',complete:'tb',upcoming:'tt'};
+    const statLabels= {active:'ACTIVE',completed:'COMPLETE',complete:'COMPLETE',upcoming:'UPCOMING'};
+    const isDone = q.status === 'completed' || q.status === 'complete';
+    return `<div class="qt-card" ${isDone ? 'style="opacity:.7"' : ''}>
       <div class="qt-hdr">
         <div class="qt-top">
           <div>
@@ -681,7 +686,7 @@ function renderQuotations() {
             ${sqft ? `<div class="qt-client" style="margin-top:2px">📐 ${fmtN(sqft)} sqft &nbsp;·&nbsp; RM ${fmtN(q.ratePerSqft)}/sqft</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
-            <span class="tag ${statColors[q.status]||'tg'}">${q.status}</span>
+            <span class="tag ${statColors[q.status]||'tg'}">${statLabels[q.status]||q.status}</span>
             <button class="btn btn-ghost btn-sm" onclick="openQtModal('${q.quotationNo}')">Edit</button>
           </div>
         </div>

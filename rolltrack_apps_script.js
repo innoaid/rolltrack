@@ -320,13 +320,14 @@ function approveSubmission(submissionId) {
 
     // Mark submission as approved FIRST so payment calc includes this row
     sheet.getRange(r + 1, idx['Status'] + 1).setValue('approved');
+    SpreadsheetApp.flush(); // ensure write is visible to subsequent reads
 
     // Update quotation installed count; recalculate payment from all approved installs
     if (formType === 'install' && quotNo) {
       updateQuotationInstalled(quotNo, qty);
-      var payCalc = calculatePaymentForQuotation(quotNo, subconCode);
+      var payCalc = calculatePaymentForQuotation(quotNo, String(subconCode));
       if (payCalc.success) {
-        upsertPaymentRecord(quotNo, subconCode, payCalc);
+        upsertPaymentRecord(String(quotNo), String(subconCode), payCalc);
       }
     }
 
@@ -416,7 +417,7 @@ function addQuotation(p) {
   ];
 
   for (var r = 1; r < data.length; r++) {
-    if (data[r][qIdx] === quotNo) {
+    if (String(data[r][qIdx]) === String(quotNo)) {
       if (iIdx >= 0) row[11] = Number(data[r][iIdx]) || 0; // preserve installed count
       sheet.getRange(r + 1, 1, 1, row.length).setValues([row]);
       return { success: true, updated: true };
