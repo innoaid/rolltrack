@@ -495,7 +495,7 @@ body{max-width:480px;margin:0 auto}
 const API_URL     = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
 const SUBCON_CODE = 'SC01';
 const SUBCON_NAME = 'Team Atik';
-const BOSS_WA     = '60146938657';
+const BOSS_WA     = '60183639321';
 
 let photos   = { pu: null, in: null, re: null };
 let balance  = 0;
@@ -724,12 +724,12 @@ function showSuccess(type) {
 }
 
 function sendWhatsApp() {
-  const lbl={pickup:'📦 PICKUP',install:'🔧 INSTALL REPORT',return:'↩️ RETURN'};
-  const t=lastSubmission.type, d=lastSubmission.date||'';
-  let msg='';
-  if(t==='pickup')  msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nQty: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
-  if(t==='install') msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nQuotation: '+lastSubmission.quot+'\nInstalled: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
-  if(t==='return')  msg=lbl[t]+'\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nReturned: '+lastSubmission.qty+' rolls\nDate: '+d+'\n\nPlease review in RollTrack.';
+  const t = lastSubmission.type, d = lastSubmission.date || '';
+  const link = 'https://innoaid.github.io/rolltrack/rolltrack_admin.html';
+  let msg = '';
+  if (t === 'pickup')  msg = '\ud83c\udfd7\ufe0f RollTrack \u2014 New Pickup Request\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nRolls: '+lastSubmission.qty+' rolls\nDate: '+d+'\nPending approval \u23f3\n\nReview: '+link;
+  if (t === 'install') msg = '\u2705 RollTrack \u2014 Installation Report\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nQuotation: '+lastSubmission.quot+'\nRolls Installed: '+lastSubmission.qty+' rolls\nDate: '+d+'\nPending QC approval \u23f3\n\nReview: '+link;
+  if (t === 'return')  msg = '\u21a9\ufe0f RollTrack \u2014 Return Request\nSubcon: '+SUBCON_NAME+' ('+SUBCON_CODE+')\nRolls Returned: '+lastSubmission.qty+' rolls\nDate: '+d+'\nPending approval \u23f3\n\nReview: '+link;
   window.open('https://wa.me/'+BOSS_WA+'?text='+encodeURIComponent(msg),'_blank');
 }
 
