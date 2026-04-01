@@ -147,6 +147,40 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 .toast.show{transform:translateX(-50%) translateY(0)}
 
 body{max-width:480px;margin:0 auto}
+
+/* HISTORY BUTTON */
+.action-btn.history{background:linear-gradient(135deg,#1a1a2a,#101020);border:1.5px solid rgba(74,100,128,.4)}
+.history .action-icon{background:rgba(74,100,128,.2)}
+.history .action-main{color:var(--muted)}
+
+/* HISTORY SCREEN */
+.hist-month{background:var(--card);border:1.5px solid var(--border);border-radius:10px;color:var(--ink);font-family:'Nunito',sans-serif;font-size:14px;font-weight:700;padding:8px 12px;-webkit-appearance:none;appearance:none;margin-left:auto;outline:none}
+.hist-section{font-size:12px;font-weight:800;color:var(--teal);text-transform:uppercase;letter-spacing:1px;padding:18px 0 8px;display:flex;align-items:center;gap:8px}
+.hist-section .hist-dot{width:6px;height:6px;border-radius:50%;background:var(--teal)}
+.hist-section.pay-section{color:var(--amber)}
+.hist-section.pay-section .hist-dot{background:var(--amber)}
+.hist-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px}
+.hist-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.hist-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.hist-icon.pickup{background:var(--teal-l)}.hist-icon.install{background:var(--amber-l)}.hist-icon.return{background:var(--red-l)}
+.hist-type{font-size:14px;font-weight:800}
+.hist-badge{margin-left:auto;padding:3px 9px;border-radius:20px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px}
+.hist-badge.pending{background:var(--amber-l);color:var(--amber)}
+.hist-badge.approved{background:var(--teal-l);color:var(--teal)}
+.hist-badge.rejected{background:var(--red-l);color:var(--red)}
+.hist-detail{font-size:12px;color:var(--muted);font-weight:600;line-height:1.7}
+.hist-reject{font-size:11px;color:var(--red);font-weight:700;margin-top:4px;padding:6px 10px;background:var(--red-l);border-radius:8px}
+.pay-card{background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:8px}
+.pay-card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.pay-card-qno{font-size:15px;font-weight:800}
+.pay-card-total{font-size:14px;font-weight:800;color:var(--amber)}
+.pay-card-meta{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:10px}
+.pay-line{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:13px;font-weight:700}
+.pay-status{padding:2px 8px;border-radius:12px;font-size:10px;font-weight:800;text-transform:uppercase}
+.pay-status.paid{background:var(--teal-l);color:var(--teal)}
+.pay-status.unpaid{background:var(--red-l);color:var(--red)}
+.pay-due{font-size:11px;color:var(--muted);font-weight:600}
+.hist-empty{text-align:center;padding:32px 16px;color:var(--muted);font-size:13px;font-weight:600}
 </style>
 </head>
 <body>
@@ -213,6 +247,15 @@ body{max-width:480px;margin:0 auto}
       <div class="action-text">
         <div class="action-main">RETURN ROLLS</div>
         <div class="action-malay">Pulang gulung ke gudang</div>
+      </div>
+      <div class="action-arrow">›</div>
+    </button>
+
+    <button class="action-btn history" onclick="goHistory()">
+      <div class="action-icon">📋</div>
+      <div class="action-text">
+        <div class="action-main">MY HISTORY</div>
+        <div class="action-malay">Sejarah saya</div>
       </div>
       <div class="action-arrow">›</div>
     </button>
@@ -413,6 +456,24 @@ body{max-width:480px;margin:0 auto}
   </div>
   <div class="submit-area">
     <button class="submit-btn red" id="re_submit" onclick="submitReturn()">↩️ SUBMIT RETURN</button>
+  </div>
+</div>
+
+<!-- ═══ HISTORY SCREEN ═══ -->
+<div class="screen form-screen" id="s-history">
+  <div class="form-header">
+    <div class="back-btn" onclick="goHome()">‹</div>
+    <div class="form-title-wrap">
+      <div class="form-title">MY HISTORY</div>
+      <div class="form-sub">Sejarah saya · Team Atik</div>
+    </div>
+    <select class="hist-month" id="histMonth" onchange="renderHistory()"></select>
+  </div>
+  <div class="form-body" style="padding-bottom:32px">
+    <div class="hist-section"><div class="hist-dot"></div>My Submissions / Penghantaran Saya</div>
+    <div id="histSubmissions"></div>
+    <div class="hist-section pay-section"><div class="hist-dot"></div>My Payments / Bayaran Saya</div>
+    <div id="histPayments"></div>
   </div>
 </div>
 
@@ -643,6 +704,138 @@ function sendWhatsApp() {
 function showLoading(text) { document.getElementById('loadingText').textContent=text||'Sending...'; document.getElementById('loadingOverlay').classList.add('show'); }
 function hideLoading()      { document.getElementById('loadingOverlay').classList.remove('show'); }
 function showToast(msg)     { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3000); }
+
+// ── HISTORY ──────────────────────────────────────────
+let histSubs = [];
+let histPay  = [];
+
+async function goHistory() {
+  showScreen('s-history');
+  initMonthPicker();
+  showLoading('Loading history...');
+  try {
+    const [subRes, payRes] = await Promise.all([
+      jsonp({ action:'getAllSubmissions' }),
+      jsonp({ action:'getPayments', subconCode: SUBCON_CODE })
+    ]);
+    histSubs = (subRes.success && subRes.submissions) ? subRes.submissions.filter(s => String(s.subconCode).trim() === SUBCON_CODE) : [];
+    histPay  = (payRes.success && payRes.payments) ? payRes.payments : [];
+  } catch(e) {
+    histSubs = []; histPay = [];
+  }
+  hideLoading();
+  renderHistory();
+}
+
+function initMonthPicker() {
+  const sel = document.getElementById('histMonth');
+  if (sel.options.length > 1) return;
+  const now = new Date();
+  const mNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  sel.innerHTML = '';
+  for (let m = now.getMonth(); m >= 0; m--) {
+    const opt = document.createElement('option');
+    opt.value = now.getFullYear() + '-' + m;
+    opt.textContent = mNames[m] + ' ' + now.getFullYear();
+    sel.appendChild(opt);
+  }
+  // Add previous year months
+  for (let m = 11; m >= 0; m--) {
+    const opt = document.createElement('option');
+    opt.value = (now.getFullYear()-1) + '-' + m;
+    opt.textContent = mNames[m] + ' ' + (now.getFullYear()-1);
+    sel.appendChild(opt);
+  }
+}
+
+function parseHistDate(ts) {
+  if (!ts && ts !== 0) return null;
+  if (typeof ts === 'number') return new Date(Math.round((ts - 25569) * 86400000));
+  return new Date(ts);
+}
+
+function fmtHistDate(ts) {
+  const d = parseHistDate(ts);
+  if (!d || isNaN(d.getTime())) return String(ts||'').substring(0,10) || '—';
+  return d.toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'});
+}
+
+function renderHistory() {
+  const sel = document.getElementById('histMonth');
+  const [filterYear, filterMonth] = sel.value.split('-').map(Number);
+
+  // Submissions filtered by month
+  const ICONS = {pickup:'📦',install:'🔧',return:'↩️'};
+  const LABELS = {pickup:'Pickup',install:'Installation',return:'Return'};
+  const filtered = histSubs.filter(s => {
+    const d = parseHistDate(s.activityDate || s.timestamp);
+    return d && d.getMonth() === filterMonth && d.getFullYear() === filterYear;
+  }).sort((a,b) => {
+    const da = parseHistDate(a.activityDate||a.timestamp);
+    const db = parseHistDate(b.activityDate||b.timestamp);
+    return (db||0) - (da||0);
+  });
+
+  const subEl = document.getElementById('histSubmissions');
+  if (!filtered.length) {
+    subEl.innerHTML = '<div class="hist-empty">No submissions this month / Tiada penghantaran bulan ini</div>';
+  } else {
+    subEl.innerHTML = filtered.map(s => {
+      const ft = String(s.formType||'').toLowerCase();
+      const st = String(s.status||'').toLowerCase();
+      const badgeCls = st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'pending';
+      const badgeIcon = st === 'approved' ? '✅' : st === 'rejected' ? '❌' : '⏳';
+      return `<div class="hist-card">
+        <div class="hist-top">
+          <div class="hist-icon ${ft}">${ICONS[ft]||'📋'}</div>
+          <div class="hist-type">${LABELS[ft]||ft}</div>
+          <div class="hist-badge ${badgeCls}">${badgeIcon} ${st||'pending'}</div>
+        </div>
+        <div class="hist-detail">
+          <strong>${s.qty}</strong> rolls · ${fmtHistDate(s.activityDate||s.timestamp)}
+          ${s.quotationNo ? '<br>Quotation: <strong>'+s.quotationNo+'</strong>' : ''}
+          ${s.notes ? '<br>Notes: '+s.notes : ''}
+        </div>
+        ${st === 'rejected' ? '<div class="hist-reject">Reason: '+(s.rejectionReason||s.notes||'—')+'</div>' : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Payments — always show all
+  const payEl = document.getElementById('histPayments');
+  if (!histPay.length) {
+    payEl.innerHTML = '<div class="hist-empty">No payment records yet / Tiada rekod bayaran</div>';
+  } else {
+    payEl.innerHTML = histPay.map(p => {
+      const rolls = Number(p['RollsInstalled']||0);
+      const rate = Number(p['RateApplied']||0);
+      const total = Number(p['TotalAmount']||0);
+      const p1amt = Number(p['Payment1Amount']||0);
+      const p1st = p['Payment1Status']||'unpaid';
+      const p1dt = p['Payment1Date']||'';
+      const p2amt = Number(p['Payment2Amount']||0);
+      const p2st = p['Payment2Status']||'unpaid';
+      const p2dt = p['Payment2Date']||'';
+      return `<div class="pay-card">
+        <div class="pay-card-hdr">
+          <div class="pay-card-qno">${p['QuotationNo']||'—'}</div>
+          <div class="pay-card-total">RM ${total.toLocaleString('en-MY',{minimumFractionDigits:2})}</div>
+        </div>
+        <div class="pay-card-meta">${rolls} rolls × RM ${rate.toLocaleString('en-MY')} / roll</div>
+        <div class="pay-line">
+          <span>P1: RM ${p1amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
+          <span class="pay-status ${p1st}">${p1st.toUpperCase()}</span>
+        </div>
+        ${p1st==='paid'&&p1dt ? '<div class="pay-due">Paid: '+fmtHistDate(p1dt)+'</div>' : ''}
+        <div class="pay-line">
+          <span>P2: RM ${p2amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
+          <span class="pay-status ${p2st}">${p2st.toUpperCase()}</span>
+        </div>
+        ${p2st==='paid'&&p2dt ? '<div class="pay-due">Paid: '+fmtHistDate(p2dt)+'</div>' : p2st!=='paid' ? '<div class="pay-due">Due after P1 paid + 14 days</div>' : ''}
+      </div>`;
+    }).join('');
+  }
+}
 </script>
 </body>
 </html>
