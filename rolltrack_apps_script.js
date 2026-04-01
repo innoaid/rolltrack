@@ -400,25 +400,35 @@ function addQuotation(p) {
   var headers = data[0];
   var qIdx    = headers.indexOf('QuotationNo');
   var iIdx    = headers.indexOf('RollsInstalled');
+  var sIdx    = headers.indexOf('Status');
+  var bIdx    = headers.indexOf('Blocks');
 
+  // Columns: QuotationNo | Date | ClientName | ProjectName | SiteAddress |
+  //          MembraneType | RatePerSqft | TotalSqft | EstRolls |
+  //          MembraneValue | TotalValue | Blocks | RollsInstalled | Status
   var row = [
-    quotNo,
-    p.date         || Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd'),
-    p.clientName   || '',
-    p.projectName  || '',
-    p.membraneType || '',
-    parseFloat(p.ratePerSqft)   || 0,
-    parseFloat(p.totalSqft)     || 0,
-    Math.ceil((parseFloat(p.totalSqft) || 0) / 80),
-    parseFloat(p.membraneValue) || 0,
-    parseFloat(p.totalValue)    || 0,
-    p.status || 'active',
-    0  // RollsInstalled placeholder (preserved on update)
+    quotNo,                                                                  // 0  QuotationNo
+    p.date         || Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd'), // 1  Date
+    p.clientName   || '',                                                    // 2  ClientName
+    p.projectName  || '',                                                    // 3  ProjectName
+    p.siteAddress  || '',                                                    // 4  SiteAddress
+    p.membraneType || '',                                                    // 5  MembraneType
+    parseFloat(p.ratePerSqft)   || 0,                                        // 6  RatePerSqft
+    parseFloat(p.totalSqft)     || 0,                                        // 7  TotalSqft
+    Math.ceil((parseFloat(p.totalSqft) || 0) / 80),                          // 8  EstRolls
+    parseFloat(p.membraneValue) || 0,                                        // 9  MembraneValue
+    parseFloat(p.totalValue)    || 0,                                        // 10 TotalValue
+    p.blocks       || '',                                                    // 11 Blocks
+    0,                                                                       // 12 RollsInstalled (preserved on update)
+    p.status || 'active'                                                     // 13 Status
   ];
 
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][qIdx]) === String(quotNo)) {
-      if (iIdx >= 0) row[11] = Number(data[r][iIdx]) || 0; // preserve installed count
+      // Preserve RollsInstalled, SiteAddress and Blocks from existing row
+      if (iIdx >= 0) row[12] = Number(data[r][iIdx]) || 0;
+      if (!row[4]  && data[r][4])  row[4]  = data[r][4];   // keep existing SiteAddress
+      if (!row[11] && bIdx >= 0)   row[11] = data[r][bIdx]; // keep existing Blocks
       sheet.getRange(r + 1, 1, 1, row.length).setValues([row]);
       return { success: true, updated: true };
     }
