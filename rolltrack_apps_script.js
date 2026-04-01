@@ -322,12 +322,24 @@ function approveSubmission(submissionId) {
     sheet.getRange(r + 1, idx['Status'] + 1).setValue('approved');
     SpreadsheetApp.flush(); // ensure write is visible to subsequent reads
 
-    // Update quotation installed count; recalculate payment from all approved installs
-    if (formType === 'install' && quotNo) {
+    // Update quotation installed count; create/update payment record for installs
+    if ((formType === 'install' || formType === 'Install') && quotNo) {
       updateQuotationInstalled(quotNo, qty);
-      var payCalc = calculatePaymentForQuotation(quotNo, String(subconCode));
-      if (payCalc.success) {
-        upsertPaymentRecord(String(quotNo), String(subconCode), payCalc);
+      try {
+        var payCalc = calculatePaymentForQuotation(quotNo, String(subconCode));
+        if (payCalc.success) {
+          upsertPaymentRecord(String(quotNo), String(subconCode), payCalc);
+        } else {
+          // Fallback: create payment from this submission's qty alone
+          createPaymentRecord(String(quotNo), String(subconCode), String(subconName), qty);
+        }
+      } catch(e) {
+        Logger.log('Payment calc error, falling back to createPaymentRecord: ' + e);
+        try {
+          createPaymentRecord(String(quotNo), String(subconCode), String(subconName), qty);
+        } catch(e2) {
+          Logger.log('createPaymentRecord error: ' + e2);
+        }
       }
     }
 
@@ -650,7 +662,7 @@ function calculatePaymentForQuotation(quotationNo, subconCode) {
     var r = rows[i];
     if (String(r.QuotationNo)  !== String(quotationNo)) continue;
     if (String(r.SubconCode)   !== String(subconCode))  continue;
-    if (String(r.FormType)     !== 'install')            continue;
+    if (String(r.FormType).toLowerCase() !== 'install')   continue;
     if (String(r.Status).trim().toLowerCase() !== 'approved') continue;
     totalRolls += Number(r.Qty) || 0;
   }
@@ -721,18 +733,33 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
 }
 
 // ── createPaymentRecord ───────────────────────────────────────────
-// Legacy wrapper — kept for backward compatibility.
-function createPaymentRecord(quotationNo, subconCode, rollsInstalled) {
+// Creates a payment record for a quotation. Skips if one already exists.
+// Accepts (quotationNo, subconCode, subconName, rollsInstalled) or
+// legacy (quotationNo, subconCode, rollsInstalled) — detects by arg type.
+function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
+  var subconName, rollsInstalled;
+  if (arg4 !== undefined) {
+    // 4-arg call: (quotationNo, subconCode, subconName, rollsInstalled)
+    subconName     = String(arg3);
+    rollsInstalled = Number(arg4) || 0;
+  } else {
+    // 3-arg legacy call: (quotationNo, subconCode, rollsInstalled)
+    rollsInstalled = Number(arg3) || 0;
+    subconName     = SUBCONS[subconCode] || subconCode;
+  }
+
   var sheet = getSheet('Payments');
   if (!sheet) return { success: false, error: 'Payments sheet not found' };
 
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
   var qIdx    = headers.indexOf('QuotationNo');
+  var scIdx   = headers.indexOf('SubconCode');
 
-  // Skip if record already exists for this quotation
+  // Skip if record already exists for this quotation+subcon
   for (var r = 1; r < data.length; r++) {
-    if (String(data[r][qIdx]) === String(quotationNo)) {
+    if (String(data[r][qIdx]) === String(quotationNo) &&
+        (scIdx < 0 || String(data[r][scIdx]) === String(subconCode))) {
       return { success: true, message: 'Record already exists', paymentID: data[r][0] };
     }
   }
@@ -740,15 +767,17 @@ function createPaymentRecord(quotationNo, subconCode, rollsInstalled) {
   var calc = calculateTieredRate(subconCode, rollsInstalled);
   if (!calc.success) return calc;
 
-  // Resolve subcon name from SubconBalances (col A = code, col B = name)
-  var subconName = SUBCONS[subconCode] || subconCode;
-  var subSheet   = getSheet('SubconBalances');
-  if (subSheet) {
-    var subData = subSheet.getDataRange().getValues();
-    for (var s = 1; s < subData.length; s++) {
-      if (String(subData[s][0]) === String(subconCode)) {
-        subconName = String(subData[s][1] || subconName);
-        break;
+  // Resolve subcon name if not provided
+  if (!subconName || subconName === subconCode) {
+    subconName = SUBCONS[subconCode] || subconCode;
+    var subSheet = getSheet('SubconBalances');
+    if (subSheet) {
+      var subRows = sheetToObjects(subSheet);
+      for (var s = 0; s < subRows.length; s++) {
+        if (String(subRows[s].SubconCode) === String(subconCode)) {
+          subconName = String(subRows[s].SubconName || subconName);
+          break;
+        }
       }
     }
   }
