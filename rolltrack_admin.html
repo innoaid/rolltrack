@@ -246,7 +246,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="hdr">
   <div class="hdr-top">
     <div class="logo"><em>Roll</em>Track <span style="color:#fff">Pro</span><small>Admin</small></div>
-    <div class="hdr-date" id="hdrDate"></div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="hdr-date" id="hdrDate"></div>
+      <button onclick="loadData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--muted)" title="Refresh data">🔄</button>
+    </div>
   </div>
   <div class="kpis">
     <div class="kpi"><div class="kn wh" id="k_wh">—</div><div class="kl">Warehouse</div></div>
@@ -610,15 +613,22 @@ function renderApprovals() {
   }
   const icons = {pickup:'📦',install:'🔧',return:'↩️'};
   const lbls  = {pickup:'Pickup',install:'Installation',return:'Return'};
-  el.innerHTML = pend.map(s => `
+  const qtMap = {};
+  (D.quotations||[]).forEach(q => { qtMap[q.quotationNo] = q; });
+  el.innerHTML = pend.map(s => {
+    const qt   = s.quotationNo ? qtMap[s.quotationNo] : null;
+    const proj = qt ? (qt.projectName || qt.clientName || '') : '';
+    const qLine = s.quotationNo && s.quotationNo !== s.subconName && s.quotationNo !== s.subconCode
+      ? `<strong>${s.quotationNo}</strong>${proj ? ' — ' + proj : ''}<br>` : '';
+    return `
     <div class="appr-card" id="appr_${s.id}">
       <div class="appr-hdr">
         <div class="appr-dot ${s.formType}">${icons[s.formType]||'📋'}</div>
         <div class="appr-info">
           <div class="appr-name">${lbls[s.formType]||s.formType} · ${s.subconName||s.subconCode}</div>
           <div class="appr-meta">
-            ${s.quotationNo && s.quotationNo !== s.subconName && s.quotationNo !== s.subconCode ? `Quotation: <strong>${s.quotationNo}</strong><br>` : ''}
-            Date: ${fmtDate(s.date||s.timestamp)} · Submitted: ${fmtTs(s.timestamp)}
+            ${qLine}
+            ${s.qty} rolls · ${fmtDate(s.date||s.timestamp)} · Submitted: ${fmtTs(s.timestamp)}
             ${s.notes ? `<br>Notes: ${s.notes}` : ''}
           </div>
         </div>
@@ -629,7 +639,8 @@ function renderApprovals() {
         <button class="appr-approve" onclick="approve('${s.id}','${s.formType}')">✅ Approve</button>
         <button class="appr-reject"  onclick="openReject('${s.id}','${s.formType}','${(s.quotationNo||'').replace(/'/g,"\\'")}')">❌ Reject</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderSubcons() {

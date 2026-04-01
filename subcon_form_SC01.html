@@ -163,7 +163,9 @@ body{max-width:480px;margin:0 auto}
 <!-- ═══ HOME SCREEN ═══ -->
 <div class="screen show" id="s-home">
   <div class="home-top">
-    <div class="brand">ROLLTRACK PRO · Innovation AID</div>
+    <div class="brand" style="display:flex;align-items:center;justify-content:center;gap:10px">ROLLTRACK PRO · Innovation AID
+      <button onclick="refreshData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;cursor:pointer;font-size:13px;color:var(--muted)" title="Refresh" id="refreshBtn">🔄</button>
+    </div>
     <div class="company-badge">
       <div class="company-icon">A</div>
       <div class="company-name">Team Atik</div>
@@ -485,6 +487,13 @@ async function loadSubconData() {
   } catch(e) {
     document.getElementById('balNum').textContent = balance;
   }
+}
+
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  if (btn) btn.textContent = '...';
+  await loadSubconData();
+  if (btn) btn.textContent = '🔄';
 }
 
 // ── NAV ───────────────────────────────────────────────
