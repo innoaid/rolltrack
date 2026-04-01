@@ -246,8 +246,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="hdr">
   <div class="hdr-top">
     <div class="logo"><em>Roll</em>Track <span style="color:#fff">Pro</span><small>Admin</small></div>
-    <div style="display:flex;align-items:center;gap:8px">
-      <div class="hdr-date" id="hdrDate"></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <input type="month" id="monthPicker" style="background:none;border:1px solid #444;border-radius:8px;padding:3px 6px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;-webkit-appearance:none;appearance:none;width:120px" onchange="onMonthChange(this.value)">
       <button onclick="loadData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--muted)" title="Refresh data">🔄</button>
     </div>
   </div>
@@ -285,6 +285,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
   <div class="sh"><h2>Recent Activity</h2></div>
   <div class="log-list" id="recLog"></div>
+  <button class="btn btn-b" style="margin-top:14px" onclick="generateMonthlyReport()">📊 &nbsp;Generate Monthly Report</button>
 </div>
 
 <!-- ═══ APPROVALS ═══ -->
@@ -484,6 +485,8 @@ let rejectingId = null;
 let payData     = [];
 let payFilter   = 'all';
 let payingRecord = null;
+const now_ = new Date();
+let filterMonth = { month: now_.getMonth(), year: now_.getFullYear() };
 
 // ══════════════════════════════════════
 // JSONP
@@ -512,11 +515,25 @@ function jsonp(params) {
 // INIT
 // ══════════════════════════════════════
 window.addEventListener('load', () => {
-  document.getElementById('hdrDate').textContent =
-    new Date().toLocaleDateString('en-MY',{weekday:'short',day:'numeric',month:'short',year:'numeric'});
+  const mp = ge('monthPicker');
+  mp.value = filterMonth.year + '-' + String(filterMonth.month+1).padStart(2,'0');
   loadCfg();
   loadData();
 });
+
+function onMonthChange(val) {
+  if (!val) return;
+  const [y,m] = val.split('-').map(Number);
+  filterMonth = { month: m-1, year: y };
+  render();
+  if (payData.length) renderPayments();
+}
+
+function inFilterMonth(ts) {
+  const d = parseDate(ts);
+  if (!d) return false;
+  return d.getMonth() === filterMonth.month && d.getFullYear() === filterMonth.year;
+}
 
 async function loadData() {
   loading(true,'Loading...');
@@ -596,10 +613,10 @@ function renderDash() {
       <div class="tc wh">${D.stock.warehouse||0}</div><div class="tc na">—</div><div class="tc na">—</div>
     </div>`;
   }
-  // Recent log
+  // Recent log (filtered by month)
   const rec = ge('recLog');
-  const r5  = (D.recentLog||[]).slice(0,5);
-  rec.innerHTML = r5.length ? r5.map(rLI).join('') : `<div class="empty"><div class="empty-i">📊</div><p>No activity yet</p></div>`;
+  const r5  = (D.recentLog||[]).filter(l => inFilterMonth(l.timestamp||l.ts)).slice(0,10);
+  rec.innerHTML = r5.length ? r5.map(rLI).join('') : `<div class="empty"><div class="empty-i">📊</div><p>No activity this month</p></div>`;
 }
 
 function renderApprovals() {
@@ -675,9 +692,12 @@ function renderSubcons() {
 function renderQuotations() {
   const el = ge('qtList');
   if (!el) return;
-  const raw = D.quotations||[];
+  const raw = (D.quotations||[]).filter(q => {
+    if (q.status === 'active' || q.status === 'upcoming') return true;
+    return inFilterMonth(q.date);
+  });
   if (!raw.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations this month. Add one above.</p></div>`;
     return;
   }
   // Sort: active/upcoming first, completed last
@@ -731,9 +751,9 @@ function renderQuotations() {
 function renderLog() {
   const el = ge('fullLog');
   if (!el) return;
-  const all  = D.recentLog||[];
+  const all  = (D.recentLog||[]).filter(l => inFilterMonth(l.timestamp||l.ts));
   const show = logF === 'all' ? all : all.filter(l => l.formType === logF);
-  el.innerHTML = show.length ? show.map(rLI).join('') : `<div class="empty"><div class="empty-i">📋</div><p>No records here yet</p></div>`;
+  el.innerHTML = show.length ? show.map(rLI).join('') : `<div class="empty"><div class="empty-i">📋</div><p>No records this month</p></div>`;
 }
 
 function setLF(f, el) {
@@ -1166,11 +1186,12 @@ function renderPayments() {
   // Weekly summary (overdue, due this week, upcoming)
   renderWeeklySummary();
 
-  // Summary
+  // Summary (filtered by month)
   const sumEl = ge('pay-summary');
+  const monthFiltered = payData.filter(p => inFilterMonth(p['CreatedAt']));
   if (sumEl) {
     let totalOwed = 0, totalPaid = 0;
-    payData.forEach(p => {
+    monthFiltered.forEach(p => {
       totalOwed += Number(p['TotalAmount']  || 0);
       if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
       if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
@@ -1196,8 +1217,8 @@ function renderPayments() {
   if (!listEl) return;
 
   const filtered = payFilter === 'all'
-    ? payData
-    : payData.filter(p => payOverallStatus(p) === payFilter);
+    ? monthFiltered
+    : monthFiltered.filter(p => payOverallStatus(p) === payFilter);
 
   if (!filtered.length) {
     listEl.innerHTML = `<div class="empty"><div class="empty-i">💰</div><p>${payData.length ? 'No payments match this filter' : 'No payment records yet'}</p></div>`;
@@ -1574,6 +1595,150 @@ function generateReport() {
 <button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
 </body>
 </html>`;
+
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else toast('Allow pop-ups to view the report');
+}
+
+// ══════════════════════════════════════
+// MONTHLY PERFORMANCE REPORT
+// ══════════════════════════════════════
+function generateMonthlyReport() {
+  const mNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const monthLabel = mNames[filterMonth.month] + ' ' + filterMonth.year;
+  const genDate = new Date().toLocaleString('en-MY',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  const avgCost = (D.stock && D.stock.avgCost) || 0;
+
+  // Filter submissions for selected month (approved installs)
+  const monthSubs = (D.recentLog||[]).filter(l => {
+    const t = l.formType || l.type || '';
+    return t === 'install' && inFilterMonth(l.timestamp || l.ts);
+  });
+  const totalRolls = monthSubs.reduce((s, l) => s + (Number(l.qty)||0), 0);
+  const totalSqft = totalRolls * ROLL_SQFT;
+  const avgSqftPerRoll = totalRolls > 0 ? (totalSqft / totalRolls).toFixed(0) : 0;
+
+  // Active projects this month
+  const activeQts = (D.quotations||[]).filter(q => q.status === 'active' || q.status === 'upcoming');
+  const totalContractValue = activeQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+
+  // Labour cost from payments in this month
+  const monthPay = payData.filter(p => inFilterMonth(p['CreatedAt']));
+  let labourCost = 0;
+  monthPay.forEach(p => {
+    if (p['Payment1Status'] === 'paid') labourCost += Number(p['Payment1Amount']||0);
+    if (p['Payment2Status'] === 'paid') labourCost += Number(p['Payment2Amount']||0);
+  });
+
+  const materialCost = totalRolls * avgCost;
+  const totalCost = labourCost + materialCost;
+  const labourPerSqft = totalSqft > 0 ? (labourCost / totalSqft) : 0;
+  const matPerSqft = totalSqft > 0 ? (materialCost / totalSqft) : 0;
+  const costPerSqft = totalSqft > 0 ? (totalCost / totalSqft) : 0;
+  const grossProfit = totalContractValue - totalCost;
+  const grossMargin = totalContractValue > 0 ? (grossProfit / totalContractValue * 100) : 0;
+  const revPerSqft = totalSqft > 0 ? (totalContractValue / totalSqft) : 0;
+
+  // Subcon breakdown
+  const scMap = {};
+  monthSubs.forEach(l => {
+    const name = l.subconName || l.subconCode || l.label || '—';
+    if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
+    const q = Number(l.qty)||0;
+    scMap[name].rolls += q;
+    scMap[name].sqft += q * ROLL_SQFT;
+  });
+  // Add labour costs per subcon from payments
+  monthPay.forEach(p => {
+    const name = p['SubconName'] || p['SubconCode'] || '?';
+    if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
+    if (p['Payment1Status'] === 'paid') scMap[name].cost += Number(p['Payment1Amount']||0);
+    if (p['Payment2Status'] === 'paid') scMap[name].cost += Number(p['Payment2Amount']||0);
+  });
+  const scRows = Object.entries(scMap).map(([name, d]) =>
+    `<tr><td>${name}</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
+  ).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No subcon activity this month</td></tr>';
+
+  // Project breakdown
+  const projRows = activeQts.map(q => {
+    const instRolls = q.rollsInstalled||0;
+    const cv = (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0);
+    return `<tr><td>${q.quotationNo}</td><td>${q.clientName||'—'}</td><td style="text-align:right">${fmtN(instRolls * ROLL_SQFT)}</td><td style="text-align:right">RM ${fmtN(cv)}</td><td>${(q.status||'').toUpperCase()}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No active projects</td></tr>';
+
+  const rm = n => 'RM ' + Number(n).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+  const html = `<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8">
+<title>Monthly Report — ${monthLabel}</title>
+<style>
+body{font-family:Arial,Helvetica,sans-serif;font-size:13px;color:#111;padding:32px;max-width:900px;margin:0 auto;line-height:1.6}
+h1{font-size:22px;margin:0 0 2px;font-weight:900}
+.subtitle{font-size:14px;color:#555;margin:0 0 4px}
+.gen{font-size:11px;color:#888;margin-bottom:24px}
+h2{font-size:16px;margin:28px 0 12px;padding-bottom:6px;border-bottom:2px solid #111}
+.kpi-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;margin-bottom:8px}
+.kpi-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eee}
+.kpi-label{color:#555}.kpi-val{font-weight:700;font-family:monospace;font-size:14px}
+.kpi-val.green{color:#1a7a3c}.kpi-val.red{color:#c01818}
+table{width:100%;border-collapse:collapse;margin-bottom:16px}
+th{background:#111;color:#fff;padding:8px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+td{padding:7px 10px;border-bottom:1px solid #eee;font-size:12px}
+tr:nth-child(even) td{background:#fafafa}
+.actions{margin-top:24px;display:flex;gap:10px}
+.actions button{padding:10px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;border:none}
+.btn-print{background:#111;color:#fff}
+.btn-close{background:#eee;color:#111}
+@media print{.actions{display:none}body{padding:16px}}
+</style></head><body>
+<h1>Innovation AID Sdn Bhd</h1>
+<div class="subtitle">Monthly Performance Report</div>
+<div class="gen">Month: <strong>${monthLabel}</strong> &nbsp;|&nbsp; Generated: ${genDate}</div>
+
+<h2>1. Installation Summary</h2>
+<div class="kpi-grid">
+  <div class="kpi-row"><span class="kpi-label">Total Sqft Installed</span><span class="kpi-val">${fmtN(totalSqft)} sqft</span></div>
+  <div class="kpi-row"><span class="kpi-label">Total Rolls Used</span><span class="kpi-val">${fmtN(totalRolls)} rolls</span></div>
+  <div class="kpi-row"><span class="kpi-label">Average Sqft per Roll</span><span class="kpi-val">${avgSqftPerRoll} sqft/roll</span></div>
+  <div class="kpi-row"><span class="kpi-label">Active Projects</span><span class="kpi-val">${activeQts.length}</span></div>
+</div>
+
+<h2>2. Cost Analysis</h2>
+<div class="kpi-grid">
+  <div class="kpi-row"><span class="kpi-label">Subcon Labour Cost</span><span class="kpi-val">${rm(labourCost)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Subcon Cost per Sqft</span><span class="kpi-val">${rm(labourPerSqft)}/sqft</span></div>
+  <div class="kpi-row"><span class="kpi-label">Material Cost</span><span class="kpi-val">${rm(materialCost)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Material Cost per Sqft</span><span class="kpi-val">${rm(matPerSqft)}/sqft</span></div>
+  <div class="kpi-row"><span class="kpi-label">Total Cost</span><span class="kpi-val">${rm(totalCost)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Total Cost per Sqft</span><span class="kpi-val">${rm(costPerSqft)}/sqft</span></div>
+</div>
+
+<h2>3. Revenue</h2>
+<div class="kpi-grid">
+  <div class="kpi-row"><span class="kpi-label">Total Contract Value</span><span class="kpi-val">${rm(totalContractValue)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Gross Profit</span><span class="kpi-val ${grossProfit>=0?'green':'red'}">${rm(grossProfit)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Gross Margin</span><span class="kpi-val ${grossMargin>=0?'green':'red'}">${grossMargin.toFixed(1)}%</span></div>
+  <div class="kpi-row"><span class="kpi-label">Revenue per Sqft</span><span class="kpi-val">${rm(revPerSqft)}/sqft</span></div>
+</div>
+
+<h2>4. Subcon Breakdown</h2>
+<table>
+<thead><tr><th>Subcon</th><th style="text-align:right">Rolls Installed</th><th style="text-align:right">Sqft</th><th style="text-align:right">Labour Cost</th><th style="text-align:right">Cost/Sqft</th></tr></thead>
+<tbody>${scRows}</tbody>
+</table>
+
+<h2>5. Project Breakdown</h2>
+<table>
+<thead><tr><th>Quotation</th><th>Client</th><th style="text-align:right">Sqft Installed</th><th style="text-align:right">Contract Value</th><th>Status</th></tr></thead>
+<tbody>${projRows}</tbody>
+</table>
+
+<div class="actions">
+  <button class="btn-print" onclick="window.print()">Print / Save as PDF</button>
+  <button class="btn-close" onclick="window.close()">Close</button>
+</div>
+</body></html>`;
 
   const w = window.open('', '_blank');
   if (w) { w.document.write(html); w.document.close(); }
