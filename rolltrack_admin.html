@@ -703,12 +703,9 @@ function renderSubcons() {
 function renderQuotations() {
   const el = ge('qtList');
   if (!el) return;
-  const raw = (D.quotations||[]).filter(q => {
-    if (q.status === 'active' || q.status === 'upcoming') return true;
-    return inDateRange(q.date);
-  });
+  const raw = D.quotations||[];
   if (!raw.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations this month. Add one above.</p></div>`;
+    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
     return;
   }
   // Sort: active/upcoming first, completed last
