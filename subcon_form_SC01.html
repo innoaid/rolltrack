@@ -208,6 +208,7 @@ body{max-width:480px;margin:0 auto}
       <div class="bal-label">Your Roll Balance / Baki Gulung Anda</div>
       <div class="bal-num" id="balNum">—</div>
       <div class="bal-sub">rolls available / gulung tersedia</div>
+      <div id="syncStatus" style="font-size:10px;color:var(--muted);font-weight:600;margin-top:4px;min-height:14px"></div>
       <div class="bal-stats">
         <div class="bstat">
           <div class="bstat-n pick" id="totalPickup">—</div>
@@ -528,25 +529,56 @@ window.addEventListener('load', () => {
   loadSubconData();
 });
 
+function showSync(txt) {
+  const el = document.getElementById('syncStatus');
+  if (el) el.textContent = txt;
+}
+
+function applySubconData(d) {
+  balance = d.balance || 0;
+  document.getElementById('balNum').textContent         = balance;
+  document.getElementById('totalPickup').textContent    = d.totalPickup    || 0;
+  document.getElementById('totalInstalled').textContent = d.totalInstalled || 0;
+  quotations = d.quotations || [];
+  const sel  = document.getElementById('in_quot');
+  sel.innerHTML = '<option value="">— Select / Pilih —</option>';
+  quotations.forEach(q => {
+    const o = document.createElement('option');
+    o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
+    sel.appendChild(o);
+  });
+}
+
 async function loadSubconData() {
+  const CACHE_KEY = 'rolltrack_sc01_cache';
+  const CACHE_TTL = 120000; // 2 min
+
+  // 1. Render from cache immediately
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const cache = JSON.parse(raw);
+      if (cache.data && cache.ts && (Date.now() - cache.ts < CACHE_TTL)) {
+        applySubconData(cache.data);
+      }
+    }
+  } catch(e) {}
+
+  // 2. Background refresh
+  showSync('Refreshing...');
   try {
     const d = await jsonp({ action:'getSubcon', code:SUBCON_CODE });
     if (d.success) {
-      balance = d.balance || 0;
-      document.getElementById('balNum').textContent         = balance;
-      document.getElementById('totalPickup').textContent    = d.totalPickup    || 0;
-      document.getElementById('totalInstalled').textContent = d.totalInstalled || 0;
-      quotations = d.quotations || [];
-      const sel  = document.getElementById('in_quot');
-      sel.innerHTML = '<option value="">— Select / Pilih —</option>';
-      quotations.forEach(q => {
-        const o = document.createElement('option');
-        o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
-        sel.appendChild(o);
-      });
+      applySubconData(d);
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: d, ts: Date.now() })); } catch(e) {}
+      showSync('✓ Updated');
+      setTimeout(() => showSync(''), 3000);
+    } else {
+      showSync('');
     }
   } catch(e) {
     document.getElementById('balNum').textContent = balance;
+    showSync('');
   }
 }
 

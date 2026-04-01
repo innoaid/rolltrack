@@ -250,7 +250,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <input type="date" id="filterFrom" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
       <span style="color:#666;font-size:10px">to</span>
       <input type="date" id="filterTo" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
-      <button onclick="loadData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--muted)" title="Refresh data">🔄</button>
+      <button onclick="loadData(true)" style="background:none;border:1px solid var(--border);border-radius:8px;padding:4px 8px;cursor:pointer;font-size:14px;color:var(--muted)" title="Refresh data">🔄</button>
+      <span id="syncStatus" style="font-size:9px;color:#555;font-family:'JetBrains Mono',monospace;min-width:24px"></span>
     </div>
   </div>
   <div class="kpis">
@@ -545,8 +546,30 @@ function inDateRange(ts) {
   return d >= filterFrom && d <= new Date(filterTo.getFullYear(), filterTo.getMonth(), filterTo.getDate(), 23, 59, 59);
 }
 
-async function loadData() {
-  loading(true,'Loading...');
+function showSync(txt, color) {
+  const el = ge('syncStatus');
+  if (el) { el.textContent = txt; el.style.color = color || '#555'; }
+}
+
+async function loadData(forceSpinner) {
+  // 1. Render from cache immediately if available
+  const CACHE_KEY = 'rolltrack_admin_cache';
+  const CACHE_TTL = 300000; // 5 min
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const cache = JSON.parse(raw);
+      if (cache.data && cache.ts && (Date.now() - cache.ts < CACHE_TTL)) {
+        D = cache.data;
+        allSubmissions = cache.submissions || [];
+        render();
+      }
+    }
+  } catch(e) {}
+
+  // 2. Background refresh (show spinner only if forced or no data yet)
+  if (forceSpinner || !D.stock.warehouse) loading(true,'Loading...');
+  showSync('⟳', '#888');
   try {
     const [d, subRes] = await Promise.all([
       jsonp({ action:'getAll' }),
@@ -555,12 +578,17 @@ async function loadData() {
     if (d.success) {
       D = d;
       allSubmissions = (subRes.success && subRes.submissions) ? subRes.submissions : [];
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: d, submissions: allSubmissions, ts: Date.now() })); } catch(e) {}
       render();
+      showSync('✓ Live', 'var(--green)');
+      setTimeout(() => showSync(''), 3000);
     } else {
       toast('Error loading data: ' + (d.error||''));
+      showSync('');
     }
   } catch(e) {
     toast('Connection error. Pull down to refresh.');
+    showSync('');
   }
   loading(false);
 }
