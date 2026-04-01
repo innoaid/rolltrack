@@ -1138,27 +1138,27 @@ function renderPayments() {
     const badgeCls     = { paid:'pay-badge-paid', partial:'pay-badge-partial', unpaid:'pay-badge-unpaid' };
     const overallBadge = badgeCls[overall] || 'pay-badge-unpaid';
 
-    // P2 due date = 14 days after P1 paid date
-    let p2DueStr = '';
-    if (p1st === 'paid' && p1dt) {
-      try {
-        const d = new Date(p1dt); d.setDate(d.getDate() + 14);
-        p2DueStr = d.toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'});
-      } catch(e) {}
-    }
+    // Due dates
+    const p1Due    = getP1DueDate(p);
+    const p2Due    = getP2DueDate(p);
+    const p1DueStr = p1Due ? fmtDate(p1Due) : '';
+    const p2DueStr = p2Due ? fmtDate(p2Due) : '';
 
-    const p1Badge = `<span class="pay-badge ${p1st === 'paid' ? 'pay-badge-paid' : 'pay-badge-unpaid'}">${p1st}</span>`;
+    const p1Badge = p1st === 'paid'
+      ? `<span class="pay-badge pay-badge-paid">paid</span>`
+      : `<span class="pay-badge pay-badge-unpaid">unpaid</span>`;
     const p2Badge = p2st === 'paid'
       ? `<span class="pay-badge pay-badge-paid">paid</span>`
       : p1st !== 'paid'
-        ? `<span class="pay-badge pay-badge-nd">not due yet</span>`
+        ? `<span class="pay-badge pay-badge-nd">not due yet${p2DueStr ? ' · Due ' + p2DueStr : ''}</span>`
         : `<span class="pay-badge pay-badge-unpaid">unpaid</span>`;
 
     const p1Info = p1st === 'paid' && (p1dt || p1ref)
-      ? `<div class="pay-ref">${fmtDate(p1dt)} · ${p1ref || '—'}</div>` : '';
+      ? `<div class="pay-ref">${fmtDate(p1dt)} · ${p1ref || '—'}</div>`
+      : (p1DueStr ? `<div class="pay-ref">Due: ${p1DueStr}</div>` : '');
     const p2Info = p2st === 'paid' && (p2dt || p2ref)
       ? `<div class="pay-ref">${fmtDate(p2dt)} · ${p2ref || '—'}</div>`
-      : (p2DueStr ? `<div class="pay-ref">Due: ${p2DueStr}</div>` : '');
+      : (p2DueStr && p1st === 'paid' ? `<div class="pay-ref">Due: ${p2DueStr}</div>` : '');
 
     const p1Btn = p1st !== 'paid'
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',1)">Mark Paid</button>` : '';
@@ -1197,29 +1197,42 @@ function renderPayments() {
 // ── Weekly Payment Summary ────────────────────────────
 let batchPayItems = [];
 
-function getPayDueDate(p, pNum) {
-  // P1 due = approval date (CreatedAt field as proxy, or Payment record creation)
-  // P2 due = P1 paid date + 14 days (only if P1 is paid)
-  if (pNum === 1) {
-    const created = p['CreatedAt'] || '';
-    return created ? parseDate(created) : null;
+function getNextMonday(fromDate) {
+  const d = new Date(fromDate);
+  const day = d.getDay(); // 0=Sun 1=Mon ... 6=Sat
+  const daysUntil = day === 1 ? 7 : (8 - day) % 7;
+  d.setDate(d.getDate() + (daysUntil || 7));
+  d.setHours(0,0,0,0);
+  return d;
+}
+
+function getP1DueDate(p) {
+  const created = p['CreatedAt'] || '';
+  const d = created ? parseDate(created) : null;
+  return d ? getNextMonday(d) : null;
+}
+
+function getP2DueDate(p) {
+  // If P1 is paid, P2 due = P1 paid date + 14 days
+  // If P1 not yet paid, P2 due = P1 due date + 14 days (estimate)
+  const p1st = p['Payment1Status'] || 'unpaid';
+  if (p1st === 'paid') {
+    const p1d = parseDate(p['Payment1Date'] || '');
+    if (p1d) { p1d.setDate(p1d.getDate() + 14); p1d.setHours(0,0,0,0); return p1d; }
   }
-  if (pNum === 2) {
-    if ((p['Payment1Status']||'') !== 'paid') return null; // P2 not due yet
-    const p1d = p['Payment1Date'] || '';
-    if (!p1d) return null;
-    const d = parseDate(p1d);
-    if (!d) return null;
-    d.setDate(d.getDate() + 14);
-    return d;
-  }
+  const p1Due = getP1DueDate(p);
+  if (p1Due) { const d = new Date(p1Due); d.setDate(d.getDate() + 14); return d; }
   return null;
+}
+
+function getPayDueDate(p, pNum) {
+  return pNum === 1 ? getP1DueDate(p) : getP2DueDate(p);
 }
 
 function buildWeeklyItems() {
   const now   = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const in7   = new Date(today); in7.setDate(in7.getDate() + 7);
+  const nextMon = getNextMonday(today);
   const in30  = new Date(today); in30.setDate(in30.getDate() + 30);
 
   const overdue = [], dueThisWeek = [], upcoming = [];
@@ -1236,16 +1249,13 @@ function buildWeeklyItems() {
       if (!amt) return;
 
       const due = getPayDueDate(p, n);
+      if (!due) return;
       const item = { name, qno, pid, pNum: n, amt, due, p };
 
-      if (!due) {
-        // P2 where P1 not paid — skip from weekly view
-        return;
-      }
       if (due < today) {
         item.daysOverdue = Math.ceil((today - due) / 86400000);
         overdue.push(item);
-      } else if (due <= in7) {
+      } else if (due <= nextMon) {
         dueThisWeek.push(item);
       } else if (due <= in30) {
         upcoming.push(item);
