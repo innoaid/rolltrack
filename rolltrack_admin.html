@@ -325,6 +325,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <!-- ═══ QUOTATIONS / PROJECTS ═══ -->
 <div class="pg" id="pg-quotations">
   <div class="sh" style="margin-top:8px"><h2>Projects & Costing</h2><span class="tag tgd">RM/sqft</span></div>
+  <button class="btn btn-b" style="margin-bottom:8px" onclick="uploadPdfQt()">📄 &nbsp;Upload PDF Quotation</button>
+  <input type="file" id="pdfFileInput" accept=".pdf" style="display:none" onchange="handlePdfFile(event)">
   <button class="btn btn-o" style="margin-bottom:11px" onclick="openQtModal(null)">＋ &nbsp;Add New Quotation</button>
   <div id="qtList"></div>
 </div>
@@ -407,6 +409,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div class="fg"><label>Quotation No.</label><input type="text" id="qt_no" placeholder="QT-0326-054"></div>
     <div class="fg"><label>Client Name</label><input type="text" id="qt_cli" placeholder="e.g. Desmond Khoo"></div>
     <div class="fg"><label>Project Name</label><input type="text" id="qt_proj" placeholder="e.g. The Seed"></div>
+    <div class="fg"><label>Site Address</label><input type="text" id="qt_site" placeholder="e.g. Lot 123, Jalan ABC"></div>
     <div class="r2">
       <div class="fg"><label>Date</label><input type="date" id="qt_date"></div>
       <div class="fg"><label>Membrane Type</label><input type="text" id="qt_mem" placeholder="e.g. 4mm Torch-On"></div>
@@ -415,6 +418,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <div class="fg"><label>Rate RM/sqft</label><input type="number" id="qt_rate" placeholder="8.50" step="0.01" oninput="calcQt()"></div>
       <div class="fg"><label>Total Sqft</label><input type="number" id="qt_sqft" placeholder="0" oninput="calcQt()"></div>
     </div>
+    <div class="fg"><label>Blocks</label><input type="number" id="qt_blocks" placeholder="0"></div>
     <div class="r2">
       <div class="fg"><label>Est. Rolls (auto)</label><input type="number" id="qt_rolls" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
       <div class="fg"><label>Total Contract Value (auto)</label><input type="text" id="qt_val" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
@@ -871,6 +875,73 @@ function calcQt() {
   ge('qt_avgcost').value = avg ? 'RM ' + avg.toLocaleString('en-MY',{minimumFractionDigits:2}) : '—';
 }
 
+function uploadPdfQt() { ge('pdfFileInput').click(); }
+
+async function handlePdfFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  event.target.value = '';
+  let apiKey = localStorage.getItem('claude_api_key');
+  if (!apiKey) {
+    apiKey = prompt('Enter your Claude API key (stored locally):');
+    if (!apiKey) return;
+    localStorage.setItem('claude_api_key', apiKey);
+  }
+  loading(true, 'Reading PDF with AI...');
+  try {
+    const base64PdfData = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PdfData } },
+            { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD.' }
+          ]
+        }]
+      })
+    });
+    const data = await response.json();
+    if (data.error) {
+      if (data.error.type === 'authentication_error') localStorage.removeItem('claude_api_key');
+      throw new Error(data.error.message || 'API error');
+    }
+    const text = data.content[0].text;
+    const clean = text.replace(/```json|```/g, '').trim();
+    const extracted = JSON.parse(clean);
+    loading(false);
+    openQtModal(null);
+    ge('qt_no').value   = extracted.quotationNo || '';
+    ge('qt_cli').value  = extracted.clientName || '';
+    ge('qt_proj').value = extracted.projectName || '';
+    ge('qt_site').value = extracted.siteAddress || '';
+    ge('qt_date').value = extracted.date || '';
+    ge('qt_mem').value  = extracted.membraneType || '';
+    ge('qt_rate').value = extracted.ratePerSqft || '';
+    ge('qt_sqft').value = extracted.totalSqft || '';
+    ge('qt_blocks').value = extracted.blocks || '';
+    calcQt();
+    ge('qtMtitle').innerHTML = '<span style="color:var(--green)">✓ PDF read successfully</span> — review & save';
+  } catch(e) {
+    loading(false);
+    toast('PDF read failed: ' + e.message);
+  }
+}
+
 function openQtModal(id) {
   editQtId = id;
   ge('qtMtitle').textContent  = id ? 'Edit Quotation' : 'New Quotation';
@@ -881,14 +952,16 @@ function openQtModal(id) {
       ge('qt_no').value   = q.quotationNo||'';
       ge('qt_cli').value  = q.clientName||'';
       ge('qt_proj').value = q.projectName||'';
+      ge('qt_site').value = q.siteAddress||'';
       ge('qt_date').value = q.date||'';
       ge('qt_mem').value  = q.membraneType||'';
       ge('qt_rate').value = q.ratePerSqft||'';
       ge('qt_sqft').value = q.totalSqft||'';
+      ge('qt_blocks').value= q.blocks||'';
       ge('qt_stat').value = q.status||'active';
     }
   } else {
-    clr('qt_no','qt_cli','qt_proj','qt_mem','qt_rate','qt_sqft','qt_rolls','qt_val','qt_memval','qt_avgcost');
+    clr('qt_no','qt_cli','qt_proj','qt_site','qt_mem','qt_rate','qt_sqft','qt_blocks','qt_rolls','qt_val','qt_memval','qt_avgcost');
     ge('qt_date').value = new Date().toISOString().split('T')[0];
     ge('qt_stat').value = 'active';
   }
@@ -910,9 +983,11 @@ async function saveQt() {
       date:        ge('qt_date').value,
       clientName:  ge('qt_cli').value.trim(),
       projectName: ge('qt_proj').value.trim(),
+      siteAddress: ge('qt_site').value.trim(),
       membraneType:ge('qt_mem').value.trim(),
       ratePerSqft: rate,
       totalSqft:   sqft,
+      blocks:      parseInt(ge('qt_blocks').value)||0,
       totalValue:  (sqft * rate).toFixed(2),
       status:      ge('qt_stat').value
     });
