@@ -1612,7 +1612,17 @@ function generateReport() {
 // ══════════════════════════════════════
 // PERFORMANCE REPORT
 // ══════════════════════════════════════
-function generatePerfReport() {
+async function generatePerfReport() {
+  // Ensure payment data is loaded
+  if (!payData.length) {
+    loading(true, 'Loading payments...');
+    try {
+      const res = await jsonp({ action:'getPayments' });
+      if (res.success) payData = res.payments || [];
+    } catch(e) {}
+    loading(false);
+  }
+
   const fromStr = ge('filterFrom').value;
   const toStr   = ge('filterTo').value;
   const rangeLabel = fromStr + ' to ' + toStr;
@@ -1621,13 +1631,13 @@ function generatePerfReport() {
 
   // Completed quotations only
   const completedQts = (D.quotations||[]).filter(q => q.status === 'completed' || q.status === 'complete');
-  const completedNos = new Set(completedQts.map(q => q.quotationNo));
+  const completedNos = completedQts.map(q => String(q.quotationNo).trim());
 
   // Approved install submissions for completed quotations within date range
   const rangeSubs = allSubmissions.filter(s => {
     if (String(s.status||'').toLowerCase() !== 'approved') return false;
     if (String(s.formType||'').toLowerCase() !== 'install') return false;
-    if (!completedNos.has(s.quotationNo)) return false;
+    if (!completedNos.includes(String(s.quotationNo).trim())) return false;
     return inDateRange(s.activityDate || s.timestamp);
   });
   const totalRolls = rangeSubs.reduce((s, r) => s + (Number(r.qty)||0), 0);
@@ -1635,13 +1645,17 @@ function generatePerfReport() {
   const avgSqftPerRoll = totalRolls > 0 ? (totalSqft / totalRolls).toFixed(0) : 0;
 
   // Quotations that have approved installs in the date range
-  const activeInRange = new Set(rangeSubs.map(s => s.quotationNo));
+  const activeInRange = new Set(rangeSubs.map(s => String(s.quotationNo).trim()));
 
   // Contract value from completed quotations with installs in date range
-  const totalContractValue = completedQts.filter(q => activeInRange.has(q.quotationNo)).reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+  const totalContractValue = completedQts.filter(q => activeInRange.has(String(q.quotationNo).trim())).reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
 
-  // Labour cost = TotalAmount from payments for completed quotations with installs in date range
-  const completedPay = payData.filter(p => completedNos.has(p['QuotationNo']) && activeInRange.has(p['QuotationNo']));
+  // Labour cost = TotalAmount from payments for completed quotations
+  // p['QuotationNo'] = capital key from Payments sheet; match against completedNos values
+  const completedPay = payData.filter(p => {
+    const pQno = String(p['QuotationNo']||'').trim();
+    return completedNos.includes(pQno) && activeInRange.has(pQno);
+  });
   let labourCost = 0;
   let labourPaid = 0;
   completedPay.forEach(p => {
@@ -1667,21 +1681,21 @@ function generatePerfReport() {
     qtSqftMap[qno] += (Number(s.qty)||0) * ROLL_SQFT;
   });
 
-  // Subcon breakdown — group by SubconCode, merge submissions + payments
+  // Subcon breakdown — group by SubconCode from payments, merge with submission rolls
   const scMap = {};
+  completedPay.forEach(p => {
+    const code = String(p['SubconCode']||'').trim() || String(p['SubconName']||'').trim() || '?';
+    const name = String(p['SubconName']||'').trim() || code;
+    if (!scMap[code]) scMap[code] = { name, rolls: 0, sqft: 0, cost: 0 };
+    scMap[code].cost += Number(p['TotalAmount']||0);
+  });
   rangeSubs.forEach(s => {
-    const code = s.subconCode || s.subconName || '—';
-    const name = s.subconName || code;
+    const code = String(s.subconCode||'').trim() || String(s.subconName||'').trim() || '—';
+    const name = String(s.subconName||'').trim() || code;
     if (!scMap[code]) scMap[code] = { name, rolls: 0, sqft: 0, cost: 0 };
     const q = Number(s.qty)||0;
     scMap[code].rolls += q;
     scMap[code].sqft += q * ROLL_SQFT;
-  });
-  completedPay.forEach(p => {
-    const code = p['SubconCode'] || p['SubconName'] || '?';
-    const name = p['SubconName'] || code;
-    if (!scMap[code]) scMap[code] = { name, rolls: 0, sqft: 0, cost: 0 };
-    scMap[code].cost += Number(p['TotalAmount']||0);
   });
   const scRows = Object.entries(scMap).map(([code, d]) =>
     `<tr><td>${d.name} (${code})</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
