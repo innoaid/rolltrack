@@ -542,7 +542,7 @@ function applySubconData(d) {
   quotations = d.quotations || [];
   const sel  = document.getElementById('in_quot');
   sel.innerHTML = '<option value="">— Select / Pilih —</option>';
-  quotations.forEach(q => {
+  quotations.filter(q => q.status === 'active' || !q.status).forEach(q => {
     const o = document.createElement('option');
     o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
     sel.appendChild(o);
