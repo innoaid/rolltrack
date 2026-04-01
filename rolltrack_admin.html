@@ -409,12 +409,16 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <div class="fg"><label>Membrane Type</label><input type="text" id="qt_mem" placeholder="e.g. 4mm Torch-On"></div>
     </div>
     <div class="r2">
-      <div class="fg"><label>Rate RM/sqft</label><input type="number" id="qt_rate" placeholder="8.50" step="0.01"></div>
-      <div class="fg"><label>Total Sqft</label><input type="number" id="qt_sqft" placeholder="0" oninput="calcRolls()"></div>
+      <div class="fg"><label>Rate RM/sqft</label><input type="number" id="qt_rate" placeholder="8.50" step="0.01" oninput="calcQt()"></div>
+      <div class="fg"><label>Total Sqft</label><input type="number" id="qt_sqft" placeholder="0" oninput="calcQt()"></div>
     </div>
     <div class="r2">
-      <div class="fg"><label>Est. Rolls (auto)</label><input type="number" id="qt_rolls" placeholder="0" class="mono-in" style="background:var(--s3)" readonly></div>
-      <div class="fg"><label>Total Value (RM)</label><input type="number" id="qt_val" placeholder="0"></div>
+      <div class="fg"><label>Est. Rolls (auto)</label><input type="number" id="qt_rolls" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
+      <div class="fg"><label>Total Contract Value (auto)</label><input type="text" id="qt_val" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
+    </div>
+    <div class="r2">
+      <div class="fg"><label>Material Cost (auto)</label><input type="text" id="qt_memval" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
+      <div class="fg"><label>Avg Cost/Roll</label><input type="text" id="qt_avgcost" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
     </div>
     <div class="fg"><label>Status</label>
       <select id="qt_stat"><option value="active">Active</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option></select>
@@ -844,10 +848,16 @@ async function doStockIn() {
 // ══════════════════════════════════════
 // QUOTATIONS
 // ══════════════════════════════════════
-function calcRolls() {
+function calcRolls() { calcQt(); } // backward compat
+function calcQt() {
   const sqft  = parseFloat(ge('qt_sqft').value)||0;
+  const rate  = parseFloat(ge('qt_rate').value)||0;
   const rolls = sqft > 0 ? Math.ceil(sqft / ROLL_SQFT) : 0;
-  ge('qt_rolls').value = rolls || '';
+  const avg   = (D.stock && D.stock.avgCost) || 0;
+  ge('qt_rolls').value   = rolls || '';
+  ge('qt_val').value     = sqft && rate ? 'RM ' + (sqft * rate).toLocaleString('en-MY',{minimumFractionDigits:2}) : '';
+  ge('qt_memval').value  = rolls && avg ? 'RM ' + (rolls * avg).toLocaleString('en-MY',{minimumFractionDigits:2}) : '';
+  ge('qt_avgcost').value = avg ? 'RM ' + avg.toLocaleString('en-MY',{minimumFractionDigits:2}) : '—';
 }
 
 function openQtModal(id) {
@@ -864,15 +874,14 @@ function openQtModal(id) {
       ge('qt_mem').value  = q.membraneType||'';
       ge('qt_rate').value = q.ratePerSqft||'';
       ge('qt_sqft').value = q.totalSqft||'';
-      ge('qt_rolls').value= q.estRolls||'';
-      ge('qt_val').value  = q.totalValue||'';
       ge('qt_stat').value = q.status||'active';
     }
   } else {
-    clr('qt_no','qt_cli','qt_proj','qt_mem','qt_rate','qt_sqft','qt_rolls','qt_val');
+    clr('qt_no','qt_cli','qt_proj','qt_mem','qt_rate','qt_sqft','qt_rolls','qt_val','qt_memval','qt_avgcost');
     ge('qt_date').value = new Date().toISOString().split('T')[0];
     ge('qt_stat').value = 'active';
   }
+  calcQt();
   ge('qtOv').classList.add('open');
 }
 function closeQtModal() { ge('qtOv').classList.remove('open'); editQtId = null; }
@@ -881,6 +890,7 @@ async function saveQt() {
   const no = ge('qt_no').value.trim();
   if (!no) { toast('Enter quotation number'); return; }
   const sqft = parseFloat(ge('qt_sqft').value)||0;
+  const rate = parseFloat(ge('qt_rate').value)||0;
   loading(true,'Saving...');
   try {
     const res = await jsonp({
@@ -890,10 +900,9 @@ async function saveQt() {
       clientName:  ge('qt_cli').value.trim(),
       projectName: ge('qt_proj').value.trim(),
       membraneType:ge('qt_mem').value.trim(),
-      ratePerSqft: parseFloat(ge('qt_rate').value)||0,
+      ratePerSqft: rate,
       totalSqft:   sqft,
-      membraneValue: (sqft*(parseFloat(ge('qt_rate').value)||0)).toFixed(2),
-      totalValue:  parseFloat(ge('qt_val').value)||0,
+      totalValue:  (sqft * rate).toFixed(2),
       status:      ge('qt_stat').value
     });
     loading(false);
