@@ -418,6 +418,13 @@ function addQuotation(p) {
   // Columns: QuotationNo | Date | ClientName | ProjectName | SiteAddress |
   //          MembraneType | RatePerSqft | TotalSqft | EstRolls |
   //          MembraneValue | TotalValue | Blocks | RollsInstalled | Status
+  var sqft     = parseFloat(p.totalSqft)    || 0;
+  var rate     = parseFloat(p.ratePerSqft)  || 0;
+  var estRolls = Math.ceil(sqft / 80) || 0;
+  var cfg      = getConfig();
+  var memValue = estRolls * (cfg.avgCost || 0);       // material cost = EstRolls × avg_cost
+  var totValue = parseFloat(p.totalValue) || (sqft * rate); // contract value = TotalSqft × RatePerSqft
+
   var row = [
     quotNo,                                                                  // 0  QuotationNo
     p.date         || Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyy-MM-dd'), // 1  Date
@@ -425,11 +432,11 @@ function addQuotation(p) {
     p.projectName  || '',                                                    // 3  ProjectName
     p.siteAddress  || '',                                                    // 4  SiteAddress
     p.membraneType || '',                                                    // 5  MembraneType
-    parseFloat(p.ratePerSqft)   || 0,                                        // 6  RatePerSqft
-    parseFloat(p.totalSqft)     || 0,                                        // 7  TotalSqft
-    Math.ceil((parseFloat(p.totalSqft) || 0) / 80),                          // 8  EstRolls
-    parseFloat(p.membraneValue) || 0,                                        // 9  MembraneValue
-    parseFloat(p.totalValue)    || 0,                                        // 10 TotalValue
+    rate,                                                                    // 6  RatePerSqft
+    sqft,                                                                    // 7  TotalSqft
+    estRolls,                                                                // 8  EstRolls
+    memValue,                                                                // 9  MembraneValue = EstRolls × avgCost
+    totValue,                                                                // 10 TotalValue = TotalSqft × RatePerSqft
     p.blocks       || '',                                                    // 11 Blocks
     0,                                                                       // 12 RollsInstalled (preserved on update)
     p.status || 'active'                                                     // 13 Status
