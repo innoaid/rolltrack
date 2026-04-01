@@ -338,6 +338,9 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="pg" id="pg-payments">
   <div class="sh" style="margin-top:8px"><h2>Subcon Payments</h2><span class="tag tgd">SC01</span></div>
 
+  <!-- TOTAL OUTSTANDING BANNER -->
+  <div id="totalOutstandingBanner"></div>
+
   <!-- WEEKLY SUMMARY -->
   <div id="weekOverdue"></div>
   <div id="weekDue"></div>
@@ -1191,15 +1194,37 @@ function renderPayments() {
   const pgEl = ge('pg-payments');
   if (!pgEl) return;
 
+  // Total outstanding banner (all-time, never filtered)
+  const bannerEl = ge('totalOutstandingBanner');
+  if (bannerEl) {
+    let allOwed = 0, allPaid = 0, unpaidCount = 0;
+    payData.forEach(p => {
+      allOwed += Number(p['TotalAmount'] || 0);
+      if (p['Payment1Status'] === 'paid') allPaid += Number(p['Payment1Amount'] || 0);
+      if (p['Payment2Status'] === 'paid') allPaid += Number(p['Payment2Amount'] || 0);
+      if (p['Payment1Status'] !== 'paid') unpaidCount++;
+      if (p['Payment1Status'] === 'paid' && p['Payment2Status'] !== 'paid') unpaidCount++;
+    });
+    const allOutstanding = allOwed - allPaid;
+    if (allOutstanding > 0) {
+      bannerEl.innerHTML = `<div style="background:var(--red-l);border:2px solid var(--red);border-radius:12px;padding:14px;margin-bottom:10px;text-align:center">
+        <div style="font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Outstanding</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:800;color:var(--red);line-height:1.1">RM ${fmtN(allOutstanding)}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${unpaidCount} payment${unpaidCount !== 1 ? 's' : ''} unpaid</div>
+      </div>`;
+    } else {
+      bannerEl.innerHTML = '';
+    }
+  }
+
   // Weekly summary (overdue, due this week, upcoming)
   renderWeeklySummary();
 
-  // Summary (filtered by month)
+  // Summary (all-time, not filtered by date)
   const sumEl = ge('pay-summary');
-  const monthFiltered = payData.filter(p => inDateRange(p['CreatedAt']));
   if (sumEl) {
     let totalOwed = 0, totalPaid = 0;
-    monthFiltered.forEach(p => {
+    payData.forEach(p => {
       totalOwed += Number(p['TotalAmount']  || 0);
       if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
       if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
@@ -1208,15 +1233,15 @@ function renderPayments() {
     sumEl.innerHTML = `<div class="pay-sum-row">
       <div class="pay-sum-item">
         <div class="pay-sum-n">RM ${fmtN(totalOwed)}</div>
-        <div class="pay-sum-l">Total Owed (SC01)</div>
+        <div class="pay-sum-l">Total Owed</div>
       </div>
       <div class="pay-sum-item">
         <div class="pay-sum-n" style="color:var(--green)">RM ${fmtN(totalPaid)}</div>
-        <div class="pay-sum-l">Paid</div>
+        <div class="pay-sum-l">Paid to Date</div>
       </div>
       <div class="pay-sum-item">
         <div class="pay-sum-n" style="color:${outstanding > 0 ? 'var(--red)' : 'var(--green)'}">RM ${fmtN(outstanding)}</div>
-        <div class="pay-sum-l">Outstanding</div>
+        <div class="pay-sum-l">Still Outstanding</div>
       </div>
     </div>`;
   }
@@ -1224,9 +1249,10 @@ function renderPayments() {
   const listEl = ge('payList');
   if (!listEl) return;
 
+  const dateFiltered = payData.filter(p => inDateRange(p['CreatedAt']));
   const filtered = payFilter === 'all'
-    ? monthFiltered
-    : monthFiltered.filter(p => payOverallStatus(p) === payFilter);
+    ? dateFiltered
+    : dateFiltered.filter(p => payOverallStatus(p) === payFilter);
 
   if (!filtered.length) {
     listEl.innerHTML = `<div class="empty"><div class="empty-i">💰</div><p>${payData.length ? 'No payments match this filter' : 'No payment records yet'}</p></div>`;
@@ -1410,16 +1436,18 @@ function renderWeeklySummary() {
     } else { dwEl.innerHTML = ''; }
   }
 
-  // TOTAL + MARK WEEK AS PAID
+  // TOTAL THIS MONDAY = all overdue + due this week (overdue always rolls forward)
   const actionable = [...overdue, ...dueThisWeek];
   const totalDue   = actionable.reduce((s, i) => s + i.amt, 0);
+  const overdueAmt = overdue.reduce((s, i) => s + i.amt, 0);
+  const dueWeekAmt = dueThisWeek.reduce((s, i) => s + i.amt, 0);
   const totEl = ge('weekTotal');
   if (totEl) {
     if (actionable.length) {
       totEl.innerHTML = `<div style="background:linear-gradient(135deg,var(--card),var(--card2));border:2px solid var(--orange);border-radius:14px;padding:16px;margin-bottom:10px;text-align:center">
         <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Total to prepare this Monday</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:700;color:var(--orange);line-height:1.1">RM ${fmtN(totalDue)}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px">${actionable.length} payment${actionable.length > 1 ? 's' : ''} (${overdue.length} overdue + ${dueThisWeek.length} this week)</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${overdue.length ? 'RM ' + fmtN(overdueAmt) + ' overdue' : ''}${overdue.length && dueThisWeek.length ? ' + ' : ''}${dueThisWeek.length ? 'RM ' + fmtN(dueWeekAmt) + ' due this week' : ''}</div>
         <button class="btn btn-o" style="margin-top:12px;width:100%" onclick="openBatchPay()">Mark Week as Paid</button>
       </div>`;
     } else {
