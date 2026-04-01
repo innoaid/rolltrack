@@ -318,6 +318,9 @@ function approveSubmission(submissionId) {
     // Update SubconBalances sheet totals
     updateSubconBalance(subconCode, formType, qty);
 
+    // Mark submission as approved FIRST so payment calc includes this row
+    sheet.getRange(r + 1, idx['Status'] + 1).setValue('approved');
+
     // Update quotation installed count; recalculate payment from all approved installs
     if (formType === 'install' && quotNo) {
       updateQuotationInstalled(quotNo, qty);
@@ -326,9 +329,6 @@ function approveSubmission(submissionId) {
         upsertPaymentRecord(quotNo, subconCode, payCalc);
       }
     }
-
-    // Mark submission as approved
-    sheet.getRange(r + 1, idx['Status'] + 1).setValue('approved');
 
     // Log movement
     addLog({ type: formType, subconCode: subconCode, subconName: subconName,
@@ -557,19 +557,19 @@ function calculateTieredRate(subconCode, rollsInstalled) {
     var row = data[r];
     if (String(row[idx['SubconCode']]) !== String(subconCode)) continue;
 
+    // Sheet columns: Tier1MaxRolls | Tier1Rate | Tier2MinRolls | Tier2MaxRolls | Tier2Rate | Tier3Rate
     var t1Max  = Number(row[idx['Tier1MaxRolls']]) || 4;
     var t1Rate = Number(row[idx['Tier1Rate']])     || 190;
     var t2Min  = Number(row[idx['Tier2MinRolls']]) || 5;
     var t2Max  = Number(row[idx['Tier2MaxRolls']]) || 9;
     var t2Rate = Number(row[idx['Tier2Rate']])     || 170;
-    var t3Min  = Number(row[idx['Tier3MinRolls']]) || 10;
     var t3Rate = Number(row[idx['Tier3Rate']])     || 150;
 
     var rate;
-    if (rolls <= t1Max)                         { rate = t1Rate; }
-    else if (rolls >= t2Min && rolls <= t2Max)  { rate = t2Rate; }
-    else if (rolls >= t3Min)                    { rate = t3Rate; }
-    else                                        { rate = t1Rate; }
+    if (rolls <= t1Max)                        { rate = t1Rate; }
+    else if (rolls >= t2Min && rolls <= t2Max) { rate = t2Rate; }
+    else if (rolls > t2Max)                    { rate = t3Rate; }
+    else                                       { rate = t1Rate; }
 
     var total = rolls * rate;
     return { success: true, rate: rate, total: total, payment1: total * 0.5, payment2: total * 0.5 };
