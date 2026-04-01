@@ -488,7 +488,7 @@ let payData     = [];
 let payFilter   = 'all';
 let payingRecord = null;
 const now_ = new Date();
-let filterFrom = new Date(now_.getFullYear(), now_.getMonth(), 1);
+let filterFrom = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let filterTo   = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let allSubmissions = [];
 
@@ -1637,11 +1637,11 @@ function generatePerfReport() {
   // Contract value from completed quotations
   const totalContractValue = completedQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
 
-  // Labour cost = TotalAmount from payments matching completed quotations in date range
-  const rangePay = payData.filter(p => inDateRange(p['CreatedAt']) && completedNos.has(p['QuotationNo']));
+  // Labour cost = TotalAmount from ALL payments matching completed quotations (no date filter)
+  const completedPay = payData.filter(p => completedNos.has(p['QuotationNo']));
   let labourCost = 0;
   let labourPaid = 0;
-  rangePay.forEach(p => {
+  completedPay.forEach(p => {
     labourCost += Number(p['TotalAmount']||0);
     if (p['Payment1Status'] === 'paid') labourPaid += Number(p['Payment1Amount']||0);
     if (p['Payment2Status'] === 'paid') labourPaid += Number(p['Payment2Amount']||0);
@@ -1664,22 +1664,24 @@ function generatePerfReport() {
     qtSqftMap[qno] += (Number(s.qty)||0) * ROLL_SQFT;
   });
 
-  // Subcon breakdown from actual submissions
+  // Subcon breakdown — group by SubconCode, merge submissions + payments
   const scMap = {};
   rangeSubs.forEach(s => {
-    const name = s.subconName || s.subconCode || '—';
-    if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
+    const code = s.subconCode || s.subconName || '—';
+    const name = s.subconName || code;
+    if (!scMap[code]) scMap[code] = { name, rolls: 0, sqft: 0, cost: 0 };
     const q = Number(s.qty)||0;
-    scMap[name].rolls += q;
-    scMap[name].sqft += q * ROLL_SQFT;
+    scMap[code].rolls += q;
+    scMap[code].sqft += q * ROLL_SQFT;
   });
-  rangePay.forEach(p => {
-    const name = p['SubconName'] || p['SubconCode'] || '?';
-    if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
-    scMap[name].cost += Number(p['TotalAmount']||0);
+  completedPay.forEach(p => {
+    const code = p['SubconCode'] || p['SubconName'] || '?';
+    const name = p['SubconName'] || code;
+    if (!scMap[code]) scMap[code] = { name, rolls: 0, sqft: 0, cost: 0 };
+    scMap[code].cost += Number(p['TotalAmount']||0);
   });
-  const scRows = Object.entries(scMap).map(([name, d]) =>
-    `<tr><td>${name}</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
+  const scRows = Object.entries(scMap).map(([code, d]) =>
+    `<tr><td>${d.name} (${code})</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
   ).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No subcon activity in this period</td></tr>';
 
   // Project breakdown — completed quotations only
