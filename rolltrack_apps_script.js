@@ -369,6 +369,20 @@ function approveSubmission(submissionId) {
       }
     }
 
+    // Auto-complete quotation status on install approval
+    if ((formType === 'install' || formType === 'Install') && quotNo) {
+      var qtSheet = getSheet('Quotations');
+      if (qtSheet) {
+        var qtData = qtSheet.getDataRange().getValues();
+        for (var qi = 1; qi < qtData.length; qi++) {
+          if (String(qtData[qi][0]).trim() === String(quotNo).trim()) {
+            qtSheet.getRange(qi + 1, 14).setValue('completed');
+            break;
+          }
+        }
+      }
+    }
+
     // Log movement
     addLog({ type: formType, subconCode: subconCode, subconName: subconName,
              quotationNo: quotNo, qty: qty, notes: notes });
