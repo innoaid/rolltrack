@@ -1622,26 +1622,32 @@ function generatePerfReport() {
   const genDate = new Date().toLocaleString('en-MY',{day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'});
   const avgCost = (D.stock && D.stock.avgCost) || 0;
 
-  // Filter approved install submissions by activityDate within date range
+  // Completed quotations only
+  const completedQts = (D.quotations||[]).filter(q => q.status === 'completed' || q.status === 'complete');
+  const completedNos = new Set(completedQts.map(q => q.quotationNo));
+
+  // Approved install submissions for completed quotations within date range
   const rangeSubs = allSubmissions.filter(s => {
     if (String(s.status||'').toLowerCase() !== 'approved') return false;
     if (String(s.formType||'').toLowerCase() !== 'install') return false;
+    if (!completedNos.has(s.quotationNo)) return false;
     return inDateRange(s.activityDate || s.timestamp);
   });
   const totalRolls = rangeSubs.reduce((s, r) => s + (Number(r.qty)||0), 0);
   const totalSqft = totalRolls * ROLL_SQFT;
   const avgSqftPerRoll = totalRolls > 0 ? (totalSqft / totalRolls).toFixed(0) : 0;
 
-  // Active projects
-  const activeQts = (D.quotations||[]).filter(q => q.status === 'active' || q.status === 'upcoming');
-  const totalContractValue = activeQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+  // Contract value from completed quotations
+  const totalContractValue = completedQts.reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
 
-  // Labour cost from payments in date range
-  const rangePay = payData.filter(p => inDateRange(p['CreatedAt']));
+  // Labour cost = TotalAmount from payments matching completed quotations in date range
+  const rangePay = payData.filter(p => inDateRange(p['CreatedAt']) && completedNos.has(p['QuotationNo']));
   let labourCost = 0;
+  let labourPaid = 0;
   rangePay.forEach(p => {
-    if (p['Payment1Status'] === 'paid') labourCost += Number(p['Payment1Amount']||0);
-    if (p['Payment2Status'] === 'paid') labourCost += Number(p['Payment2Amount']||0);
+    labourCost += Number(p['TotalAmount']||0);
+    if (p['Payment1Status'] === 'paid') labourPaid += Number(p['Payment1Amount']||0);
+    if (p['Payment2Status'] === 'paid') labourPaid += Number(p['Payment2Amount']||0);
   });
 
   const materialCost = totalRolls * avgCost;
@@ -1652,6 +1658,14 @@ function generatePerfReport() {
   const grossProfit = totalContractValue - totalCost;
   const grossMargin = totalContractValue > 0 ? (grossProfit / totalContractValue * 100) : 0;
   const revPerSqft = totalSqft > 0 ? (totalContractValue / totalSqft) : 0;
+
+  // Build sqft-per-quotation lookup from submissions
+  const qtSqftMap = {};
+  rangeSubs.forEach(s => {
+    const qno = s.quotationNo || '';
+    if (!qtSqftMap[qno]) qtSqftMap[qno] = 0;
+    qtSqftMap[qno] += (Number(s.qty)||0) * ROLL_SQFT;
+  });
 
   // Subcon breakdown from actual submissions
   const scMap = {};
@@ -1665,19 +1679,18 @@ function generatePerfReport() {
   rangePay.forEach(p => {
     const name = p['SubconName'] || p['SubconCode'] || '?';
     if (!scMap[name]) scMap[name] = { rolls: 0, sqft: 0, cost: 0 };
-    if (p['Payment1Status'] === 'paid') scMap[name].cost += Number(p['Payment1Amount']||0);
-    if (p['Payment2Status'] === 'paid') scMap[name].cost += Number(p['Payment2Amount']||0);
+    scMap[name].cost += Number(p['TotalAmount']||0);
   });
   const scRows = Object.entries(scMap).map(([name, d]) =>
     `<tr><td>${name}</td><td style="text-align:right">${d.rolls}</td><td style="text-align:right">${fmtN(d.sqft)}</td><td style="text-align:right">RM ${fmtN(d.cost)}</td><td style="text-align:right">${d.sqft>0?'RM '+(d.cost/d.sqft).toFixed(2):'—'}</td></tr>`
   ).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No subcon activity in this period</td></tr>';
 
-  // Project breakdown
-  const projRows = activeQts.map(q => {
-    const instRolls = q.rollsInstalled||0;
+  // Project breakdown — completed quotations only
+  const projRows = completedQts.map(q => {
+    const qSqft = qtSqftMap[q.quotationNo] || 0;
     const cv = (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0);
-    return `<tr><td>${q.quotationNo}</td><td>${q.clientName||'—'}</td><td style="text-align:right">${fmtN(instRolls * ROLL_SQFT)}</td><td style="text-align:right">RM ${fmtN(cv)}</td><td>${(q.status||'').toUpperCase()}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" style="text-align:center;color:#999">No active projects</td></tr>';
+    return `<tr><td>${q.quotationNo}</td><td>${q.clientName||'—'}</td><td>${q.projectName||'—'}</td><td style="text-align:right">${qSqft > 0 ? fmtN(qSqft) : '—'}</td><td style="text-align:right">RM ${fmtN(cv)}</td><td>COMPLETE</td></tr>`;
+  }).join('') || '<tr><td colspan="6" style="text-align:center;color:#999">No completed projects</td></tr>';
 
   const rm = n => 'RM ' + Number(n).toLocaleString('en-MY',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -1713,12 +1726,13 @@ tr:nth-child(even) td{background:#fafafa}
   <div class="kpi-row"><span class="kpi-label">Total Sqft Installed</span><span class="kpi-val">${fmtN(totalSqft)} sqft</span></div>
   <div class="kpi-row"><span class="kpi-label">Total Rolls Used</span><span class="kpi-val">${fmtN(totalRolls)} rolls</span></div>
   <div class="kpi-row"><span class="kpi-label">Average Sqft per Roll</span><span class="kpi-val">${avgSqftPerRoll} sqft/roll</span></div>
-  <div class="kpi-row"><span class="kpi-label">Active Projects</span><span class="kpi-val">${activeQts.length}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Completed Projects</span><span class="kpi-val">${completedQts.length}</span></div>
 </div>
 
 <h2>2. Cost Analysis</h2>
 <div class="kpi-grid">
-  <div class="kpi-row"><span class="kpi-label">Subcon Labour Cost</span><span class="kpi-val">${rm(labourCost)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Subcon Labour Cost (Owed)</span><span class="kpi-val">${rm(labourCost)}</span></div>
+  <div class="kpi-row"><span class="kpi-label">Amount Paid to Date</span><span class="kpi-val" style="color:#1a7a3c">${rm(labourPaid)}</span></div>
   <div class="kpi-row"><span class="kpi-label">Subcon Cost per Sqft</span><span class="kpi-val">${rm(labourPerSqft)}/sqft</span></div>
   <div class="kpi-row"><span class="kpi-label">Material Cost</span><span class="kpi-val">${rm(materialCost)}</span></div>
   <div class="kpi-row"><span class="kpi-label">Material Cost per Sqft</span><span class="kpi-val">${rm(matPerSqft)}/sqft</span></div>
@@ -1742,7 +1756,7 @@ tr:nth-child(even) td{background:#fafafa}
 
 <h2>5. Project Breakdown</h2>
 <table>
-<thead><tr><th>Quotation</th><th>Client</th><th style="text-align:right">Sqft Installed</th><th style="text-align:right">Contract Value</th><th>Status</th></tr></thead>
+<thead><tr><th>Quotation</th><th>Client</th><th>Project</th><th style="text-align:right">Sqft Installed</th><th style="text-align:right">Contract Value</th><th>Status</th></tr></thead>
 <tbody>${projRows}</tbody>
 </table>
 
