@@ -225,7 +225,8 @@ body{max-width:480px;margin:0 auto}
   <div class="actions-title">What do you want to do? / Apa yang anda nak buat?</div>
   <div class="actions">
 
-    <button class="action-btn pickup" onclick="goForm('pickup')">
+    <!-- PICKUP AND RETURN HIDDEN FOR TESTING PHASE -->
+    <button class="action-btn pickup" onclick="goForm('pickup')" style="display:none">
       <div class="action-icon">📦</div>
       <div class="action-text">
         <div class="action-main">PICKUP ROLLS</div>
@@ -243,7 +244,7 @@ body{max-width:480px;margin:0 auto}
       <div class="action-arrow">›</div>
     </button>
 
-    <button class="action-btn return" onclick="goForm('return')">
+    <button class="action-btn return" onclick="goForm('return')" style="display:none">
       <div class="action-icon">↩️</div>
       <div class="action-text">
         <div class="action-main">RETURN ROLLS</div>
@@ -265,7 +266,7 @@ body{max-width:480px;margin:0 auto}
 </div>
 
 <!-- ═══ PICKUP FORM ═══ -->
-<div class="screen form-screen" id="s-pickup">
+<div class="screen form-screen" id="s-pickup" style="display:none">
   <div class="form-header">
     <div class="back-btn" onclick="goHome()">‹</div>
     <div class="form-title-wrap">
@@ -313,7 +314,7 @@ body{max-width:480px;margin:0 auto}
           <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('pu')">🔄 Retake</button>
         </div>
       </div>
-      <input type="file" id="photoInput" accept="image/*" capture="environment" onchange="handlePhoto(this,'pu')">
+      <input type="file" id="photoInput" accept="image/*" onchange="handlePhoto(this,'pu')">
       <div class="field-error" id="pu_photo_err">Photo is required / Foto diperlukan</div>
     </div>
   </div>
@@ -379,7 +380,7 @@ body{max-width:480px;margin:0 auto}
           <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('in')">🔄 Retake</button>
         </div>
       </div>
-      <input type="file" id="photoInput2" accept="image/*" capture="environment" onchange="handlePhoto(this,'in')">
+      <input type="file" id="photoInput2" accept="image/*" onchange="handlePhoto(this,'in')">
       <div class="field-error" id="in_photo_err">Photo is required / Foto diperlukan</div>
     </div>
   </div>
@@ -389,7 +390,7 @@ body{max-width:480px;margin:0 auto}
 </div>
 
 <!-- ═══ RETURN FORM ═══ -->
-<div class="screen form-screen" id="s-return">
+<div class="screen form-screen" id="s-return" style="display:none">
   <div class="form-header">
     <div class="back-btn" onclick="goHome()">‹</div>
     <div class="form-title-wrap">
@@ -451,7 +452,7 @@ body{max-width:480px;margin:0 auto}
           <button class="photo-retake" onclick="event.stopPropagation();retakePhoto('re')">🔄 Retake</button>
         </div>
       </div>
-      <input type="file" id="photoInput3" accept="image/*" capture="environment" onchange="handlePhoto(this,'re')">
+      <input type="file" id="photoInput3" accept="image/*" onchange="handlePhoto(this,'re')">
       <div class="field-error" id="re_photo_err">Photo is required / Foto diperlukan</div>
     </div>
   </div>
@@ -634,7 +635,7 @@ function compressImage(src, cb) {
 function checkBalance() {}
 function checkInstallQty() {
   const qty = parseInt(document.getElementById('in_qty').value)||0;
-  document.getElementById('in_bal_warn').style.display = (qty>balance&&balance>0)?'block':'none';
+  // Balance warning disabled for testing phase
 }
 function showErr(id) { document.getElementById(id).classList.add('show'); }
 function hideErr(id) { document.getElementById(id).classList.remove('show'); }
@@ -661,7 +662,7 @@ async function submitInstall() {
   if(!qty||qty<1){showErr('in_qty_err');ok=false;}else hideErr('in_qty_err');
   if(!photos.in){showErr('in_photo_err');ok=false;}else hideErr('in_photo_err');
   if(!ok){showToast('Please fill all required fields');return;}
-  if(qty>balance){showToast('⚠️ You only have '+balance+' rolls. Cannot claim '+qty+'.');return;}
+  // Balance check removed for testing phase
   lastSubmission={type:'install',qty,quot,date:document.getElementById('in_date').value};
   await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
     formType:'install',quotationNo:quot,qty,date:document.getElementById('in_date').value,
