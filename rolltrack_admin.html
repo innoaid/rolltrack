@@ -335,7 +335,10 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <button class="btn btn-b" style="margin-bottom:8px" onclick="uploadPdfQt()">📄 &nbsp;Upload PDF Quotation</button>
   <input type="file" id="pdfFileInput" accept=".pdf" style="display:none" onchange="handlePdfFile(event)">
   <button class="btn btn-o" style="margin-bottom:11px" onclick="openQtModal(null)">＋ &nbsp;Add New Quotation</button>
-  <input type="text" id="qtSearch" placeholder="Search by QT no, client, project..." oninput="renderQuotations()" style="width:100%;margin-bottom:12px">
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <input type="text" id="qtSearch" placeholder="Search QT no, client, project..." oninput="renderQuotations()" style="flex:1">
+    <select id="qtSubconFilter" onchange="renderQuotations()" style="width:140px;font-size:13px"><option value="">All subcons</option><option value="SC01">Md Atik</option><option value="SC02">Md Shahazan</option><option value="SC03">Md Mohiuddin</option><option value="SC04">Md Foysel</option><option value="UNASSIGNED">Unassigned</option></select>
+  </div>
   <div id="qtList"></div>
 </div>
 
@@ -814,13 +817,16 @@ function renderQuotations() {
   const el = ge('qtList');
   if (!el) return;
   const raw = D.quotations||[];
-  const searchEl = ge('qtSearch');
-  const q = searchEl ? searchEl.value.toLowerCase().trim() : '';
-  const filtered = q ? raw.filter(qt =>
+  const q = (ge('qtSearch') ? ge('qtSearch').value : '').toLowerCase().trim();
+  const sf = (ge('qtSubconFilter') ? ge('qtSubconFilter').value : '');
+  let filtered = raw;
+  if (q) filtered = filtered.filter(qt =>
     (qt.quotationNo||'').toLowerCase().includes(q) ||
     (qt.clientName||'').toLowerCase().includes(q) ||
     (qt.projectName||'').toLowerCase().includes(q)
-  ) : raw;
+  );
+  if (sf === 'UNASSIGNED') filtered = filtered.filter(qt => !qt.assignedSubcon);
+  else if (sf) filtered = filtered.filter(qt => qt.assignedSubcon === sf);
   if (!filtered.length) {
     el.innerHTML = q
       ? `<div class="empty"><div class="empty-i">🔍</div><p>No quotations found for "${q}"</p></div>`
