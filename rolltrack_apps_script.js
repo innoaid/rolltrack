@@ -179,15 +179,15 @@ function getSubcon(code) {
     var r = rows[i];
     if (String(r.SubconCode).trim() !== String(code).trim()) continue;
 
-    // Build active quotations list for the install dropdown
+    // Build active quotations list for the install dropdown — filtered by assigned subcon
     var quotes  = getQuotations();
     var activeQ = [];
     for (var q = 0; q < quotes.length; q++) {
       var qt = quotes[q];
-      if (qt.status === 'active' || qt.status === 'upcoming') {
-        Logger.log('getSubcon qt keys: ' + JSON.stringify(qt));
-        activeQ.push({ no: qt.quotationNo || qt.QuotationNo || '', project: qt.projectName || qt.ProjectName || '', client: qt.clientName || qt.ClientName || '' });
-      }
+      if (qt.status !== 'active' && qt.status !== 'upcoming') continue;
+      var assigned = qt.assignedSubcon || '';
+      if (assigned && assigned !== String(code).trim()) continue; // skip if assigned to different subcon
+      activeQ.push({ no: qt.quotationNo || '', project: qt.projectName || '', client: qt.clientName || '', assignedSubcon: assigned });
     }
 
     return {
@@ -464,7 +464,7 @@ function addQuotation(p) {
 
   // Columns: QuotationNo | Date | ClientName | ProjectName | SiteAddress |
   //          MembraneType | RatePerSqft | TotalSqft | EstRolls |
-  //          MembraneValue | TotalValue | Blocks | RollsInstalled | Status
+  //          MembraneValue | TotalValue | Blocks | RollsInstalled | Status | AssignedSubcon
   var sqft     = parseFloat(p.totalSqft)    || 0;
   var rate     = parseFloat(p.ratePerSqft)  || 0;
   var estRolls = Math.ceil(sqft / 80) || 0;
@@ -486,7 +486,8 @@ function addQuotation(p) {
     totValue,                                                                // 10 TotalValue = TotalSqft × RatePerSqft
     p.blocks       || '',                                                    // 11 Blocks
     0,                                                                       // 12 RollsInstalled (preserved on update)
-    p.status || 'active'                                                     // 13 Status
+    p.status || 'active',                                                    // 13 Status
+    p.assignedSubcon || ''                                                   // 14 AssignedSubcon
   ];
 
   for (var r = 1; r < data.length; r++) {
@@ -495,6 +496,9 @@ function addQuotation(p) {
       if (iIdx >= 0) row[12] = Number(data[r][iIdx]) || 0;
       if (!row[4]  && data[r][4])  row[4]  = data[r][4];   // keep existing SiteAddress
       if (!row[11] && bIdx >= 0)   row[11] = data[r][bIdx]; // keep existing Blocks
+      // Keep existing AssignedSubcon if not provided
+      var asIdx = headers.indexOf('AssignedSubcon');
+      if (!row[14] && asIdx >= 0 && data[r][asIdx]) row[14] = data[r][asIdx];
       sheet.getRange(r + 1, 1, 1, row.length).setValues([row]);
       return { success: true, updated: true };
     }

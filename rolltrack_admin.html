@@ -437,8 +437,13 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <div class="fg"><label>Material Cost (auto)</label><input type="text" id="qt_memval" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
       <div class="fg"><label>Avg Cost/Roll</label><input type="text" id="qt_avgcost" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
     </div>
-    <div class="fg"><label>Status</label>
-      <select id="qt_stat"><option value="active">Active</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option></select>
+    <div class="r2">
+      <div class="fg"><label>Status</label>
+        <select id="qt_stat"><option value="active">Active</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option></select>
+      </div>
+      <div class="fg"><label>Assigned Subcon</label>
+        <select id="qt_subcon"><option value="">— Not assigned —</option><option value="SC01">SC01 — Md Atik</option><option value="SC02">SC02 — Md Shahazan</option><option value="SC03">SC03 — Md Mohiuddin</option><option value="SC04">SC04 — Md Foysel</option></select>
+      </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
       <button class="btn btn-ghost" style="flex:1" onclick="closeQtModal()">Cancel</button>
@@ -498,6 +503,7 @@ const now_ = new Date();
 let filterFrom = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let filterTo   = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let allSubmissions = [];
+const SUBCONS_MAP = {'SC01':'Md Atik (SC01)','SC02':'Md Shahazan (SC02)','SC03':'Md Mohiuddin (SC03)','SC04':'Md Foysel (SC04)'};
 
 // ══════════════════════════════════════
 // JSONP
@@ -831,7 +837,7 @@ function renderQuotations() {
       <div class="qt-hdr">
         <div class="qt-top">
           <div>
-            <div class="qt-no">${q.quotationNo}</div>
+            <div class="qt-no">${q.quotationNo}${q.assignedSubcon ? ` <span style="font-size:9px;background:var(--s3);color:var(--muted);padding:2px 6px;border-radius:10px;font-weight:700;margin-left:4px">${SUBCONS_MAP[q.assignedSubcon]||q.assignedSubcon}</span>` : ''}</div>
             <div class="qt-client">${q.clientName||'—'} · ${q.projectName||''}</div>
             ${sqft ? `<div class="qt-client" style="margin-top:2px">📐 ${fmtN(sqft)} sqft &nbsp;·&nbsp; RM ${fmtN(q.ratePerSqft)}/sqft</div>` : ''}
           </div>
@@ -1108,11 +1114,13 @@ function openQtModal(id) {
       ge('qt_sqft').value = q.totalSqft||'';
       ge('qt_blocks').value= q.blocks||'';
       ge('qt_stat').value = q.status||'active';
+      ge('qt_subcon').value = q.assignedSubcon||'';
     }
   } else {
     clr('qt_no','qt_cli','qt_proj','qt_site','qt_mem','qt_rate','qt_sqft','qt_blocks','qt_rolls','qt_val','qt_memval','qt_avgcost');
     ge('qt_date').value = new Date().toISOString().split('T')[0];
     ge('qt_stat').value = 'active';
+    ge('qt_subcon').value = '';
   }
   calcQt();
   ge('qtOv').classList.add('open');
@@ -1138,7 +1146,8 @@ async function saveQt() {
       totalSqft:   sqft,
       blocks:      parseInt(ge('qt_blocks').value)||0,
       totalValue:  (sqft * rate).toFixed(2),
-      status:      ge('qt_stat').value
+      status:      ge('qt_stat').value,
+      assignedSubcon: ge('qt_subcon').value
     });
     loading(false);
     if (res.success) {
