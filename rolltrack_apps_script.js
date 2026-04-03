@@ -621,7 +621,7 @@ function addLog(entry) {
 // Applies flat tier based on total rolls (not accumulative)
 function calculateTieredRate(subconCode, rollsInstalled) {
   var sheet = getSheet('SubconRates');
-  if (!sheet) return { success: false, error: 'SubconRates sheet not found. Run setupPaymentSheets() first.' };
+  if (!sheet) return { success: false, error: 'SubconRates sheet not found. Run setupAllSubconRates() first.' };
 
   var data    = sheet.getDataRange().getValues();
   var headers = data[0];
@@ -634,9 +634,35 @@ function calculateTieredRate(subconCode, rollsInstalled) {
     var row = data[r];
     if (String(row[idx['SubconCode']]) !== String(subconCode)) continue;
 
-    // Sheet columns: Tier1MaxRolls | Tier1Rate | Tier2MinRolls | Tier2MaxRolls | Tier2Rate | Tier3Rate
+    // Check for SpecialRates JSON (SC04 style)
+    var specialCol = idx['SpecialRates'];
+    var specialRaw = (specialCol !== undefined) ? String(row[specialCol] || '').trim() : '';
+    if (specialRaw && specialRaw !== '') {
+      try {
+        var tiers = JSON.parse(specialRaw);
+        for (var t = 0; t < tiers.length; t++) {
+          var tier = tiers[t];
+          var minR = tier.minRolls || 0;
+          var maxR = tier.maxRolls || 999999;
+          if (rolls >= minR && rolls <= maxR) {
+            if (tier.flatTotal) {
+              var ft = Number(tier.flatTotal);
+              return { success: true, rate: Math.round(ft / rolls), total: ft, payment1: ft * 0.5, payment2: ft * 0.5 };
+            }
+            var sRate = Number(tier.rate);
+            var sTotal = rolls * sRate;
+            return { success: true, rate: sRate, total: sTotal, payment1: sTotal * 0.5, payment2: sTotal * 0.5 };
+          }
+        }
+        return { success: false, error: 'No matching tier for ' + rolls + ' rolls (SC04)' };
+      } catch(e) {
+        Logger.log('Error parsing SpecialRates for ' + subconCode + ': ' + e);
+      }
+    }
+
+    // Standard 3-tier structure (SC01-SC03)
     var t1Max  = Number(row[idx['Tier1MaxRolls']]) || 4;
-    var t1Rate = Number(row[idx['Tier1Rate']])     || 190;
+    var t1Rate = Number(row[idx['Tier1Rate']])     || 200;
     var t2Min  = Number(row[idx['Tier2MinRolls']]) || 5;
     var t2Max  = Number(row[idx['Tier2MaxRolls']]) || 9;
     var t2Rate = Number(row[idx['Tier2Rate']])     || 170;
@@ -911,6 +937,57 @@ function setupCredentials() {
   } else {
     Logger.log('Credentials sheet already has data (' + existing.length + ' rows)');
   }
+}
+
+function setupAllSubcons() {
+  var ss = getSpreadsheet();
+  var sh = ss.getSheetByName('SubconBalances');
+  if (!sh) {
+    sh = ss.insertSheet('SubconBalances');
+    sh.appendRow(['SubconCode','SubconName','TotalPickup','TotalInstalled','Balance','LastUpdated']);
+  }
+  var existing = sh.getDataRange().getValues().map(function(r){ return String(r[0]); });
+  var subcons = [
+    ['SC01','Md Atik',0,0,0,''],
+    ['SC02','Md Shahazan',0,0,0,''],
+    ['SC03','Md Mohiuddin',0,0,0,''],
+    ['SC04','Md Foysel',0,0,0,'']
+  ];
+  subcons.forEach(function(s) {
+    if (existing.indexOf(s[0]) === -1) sh.appendRow(s);
+  });
+  Logger.log('setupAllSubcons complete');
+}
+
+function setupAllSubconRates() {
+  var ss = getSpreadsheet();
+  var sh = ss.getSheetByName('SubconRates');
+  if (!sh) {
+    sh = ss.insertSheet('SubconRates');
+  }
+  sh.clearContents();
+  sh.appendRow(['SubconCode','SubconName','Tier1MaxRolls','Tier1Rate','Tier2MinRolls','Tier2MaxRolls','Tier2Rate','Tier3Rate','SpecialRates']);
+
+  var sc04Rates = JSON.stringify([
+    {"maxRolls":3,"flatTotal":500},
+    {"minRolls":4,"maxRolls":6,"rate":170},
+    {"minRolls":7,"maxRolls":9,"rate":165},
+    {"minRolls":10,"maxRolls":15,"rate":160},
+    {"minRolls":16,"maxRolls":20,"rate":155},
+    {"minRolls":21,"maxRolls":25,"rate":150},
+    {"minRolls":26,"maxRolls":30,"rate":145},
+    {"minRolls":31,"maxRolls":45,"rate":130},
+    {"minRolls":46,"maxRolls":60,"rate":125},
+    {"minRolls":61,"maxRolls":100,"rate":110},
+    {"minRolls":101,"rate":100}
+  ]);
+
+  sh.appendRow(['SC01','Md Atik',4,200,5,9,170,150,'']);
+  sh.appendRow(['SC02','Md Shahazan',4,200,5,9,170,150,'']);
+  sh.appendRow(['SC03','Md Mohiuddin',4,200,5,9,170,150,'']);
+  sh.appendRow(['SC04','Md Foysel',0,0,0,0,0,0,sc04Rates]);
+
+  Logger.log('setupAllSubconRates complete');
 }
 
 // ── markPayment ───────────────────────────────────────────────────
