@@ -335,6 +335,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <button class="btn btn-b" style="margin-bottom:8px" onclick="uploadPdfQt()">📄 &nbsp;Upload PDF Quotation</button>
   <input type="file" id="pdfFileInput" accept=".pdf" style="display:none" onchange="handlePdfFile(event)">
   <button class="btn btn-o" style="margin-bottom:11px" onclick="openQtModal(null)">＋ &nbsp;Add New Quotation</button>
+  <input type="text" id="qtSearch" placeholder="Search by QT no, client, project..." oninput="renderQuotations()" style="width:100%;margin-bottom:12px">
   <div id="qtList"></div>
 </div>
 
@@ -813,13 +814,22 @@ function renderQuotations() {
   const el = ge('qtList');
   if (!el) return;
   const raw = D.quotations||[];
-  if (!raw.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
+  const searchEl = ge('qtSearch');
+  const q = searchEl ? searchEl.value.toLowerCase().trim() : '';
+  const filtered = q ? raw.filter(qt =>
+    (qt.quotationNo||'').toLowerCase().includes(q) ||
+    (qt.clientName||'').toLowerCase().includes(q) ||
+    (qt.projectName||'').toLowerCase().includes(q)
+  ) : raw;
+  if (!filtered.length) {
+    el.innerHTML = q
+      ? `<div class="empty"><div class="empty-i">🔍</div><p>No quotations found for "${q}"</p></div>`
+      : `<div class="empty"><div class="empty-i">🏗️</div><p>No quotations yet. Add one above.</p></div>`;
     return;
   }
   // Sort: active/upcoming first, completed last
   const order = {active:0, upcoming:1, completed:2, complete:2};
-  const qts = raw.slice().sort((a,b) => (order[a.status]||0) - (order[b.status]||0));
+  const qts = filtered.slice().sort((a,b) => (order[a.status]||0) - (order[b.status]||0));
   const avgCost = D.stock.avgCost||0;
   el.innerHTML = qts.map(q => {
     const inst      = q.rollsInstalled||0;
