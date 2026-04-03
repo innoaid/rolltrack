@@ -252,7 +252,8 @@ function getPendingSubmissions() {
       qty:         Number(r.Qty)    || 0,
       date:        r.ActivityDate   || '',
       notes:       r.Notes          || '',
-      status:      r.Status         || ''
+      status:      r.Status         || '',
+      puSealant:   Number(r.PUSealant) || 0
     });
   }
   return result;
@@ -275,7 +276,8 @@ function getAllSubmissions() {
       qty:          Number(r.Qty)    || 0,
       activityDate: r.ActivityDate   || '',
       notes:        r.Notes          || '',
-      status:       r.Status         || ''
+      status:       r.Status         || '',
+      puSealant:    Number(r.PUSealant) || 0
     });
   }
   return { success: true, submissions: result };
@@ -291,6 +293,7 @@ function submitSubconForm(p) {
   // Columns: A=Timestamp B=SubconCode C=SubconName D=FormType E=QuotationNo
   //          F=Qty G=ActivityDate H=Notes I=PhotoURL J=Status
   //          K=ApprovedBy L=ApprovedAt M=RejectionReason N=SubmissionID
+  //          O=PUSealant
   sheet.appendRow([
     new Date(),           // A  Timestamp
     p.subconCode  || '',  // B  SubconCode
@@ -305,7 +308,8 @@ function submitSubconForm(p) {
     '',                   // K  ApprovedBy
     '',                   // L  ApprovedAt
     '',                   // M  RejectionReason
-    subId                 // N  SubmissionID
+    subId,                // N  SubmissionID
+    Number(p.puSealant) || 0  // O  PUSealant
   ]);
 
   return { success: true, submissionId: subId };

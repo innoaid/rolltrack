@@ -360,6 +360,15 @@ body{max-width:480px;margin:0 auto}
     </div>
 
     <div class="fgroup">
+      <label class="flabel">PU Sealant Used / Sealant PU Digunakan <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
+      <div class="qty-wrap">
+        <input type="number" id="in_pu_sealant" placeholder="0" min="0" style="font-size:20px;text-align:center;padding:10px">
+        <div class="qty-unit">Pcs</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);font-weight:600;margin-top:4px">Bilangan pcs yang digunakan</div>
+    </div>
+
+    <div class="fgroup">
       <label class="flabel">Area / Zone <span style="font-size:10px;color:var(--muted);font-weight:600;text-transform:none">(optional)</span></label>
       <input type="text" id="in_area" placeholder="e.g. Blk 62, Level 3 / Blok 62, Aras 3">
     </div>
@@ -663,10 +672,11 @@ async function submitInstall() {
   if(!photos.in){showErr('in_photo_err');ok=false;}else hideErr('in_photo_err');
   if(!ok){showToast('Please fill all required fields');return;}
   // Balance check removed for testing phase
+  const puSealant=parseInt(document.getElementById('in_pu_sealant').value)||0;
   lastSubmission={type:'install',qty,quot,date:document.getElementById('in_date').value};
   await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
     formType:'install',quotationNo:quot,qty,date:document.getElementById('in_date').value,
-    notes:document.getElementById('in_area').value},'install');
+    notes:document.getElementById('in_area').value,puSealant:String(puSealant)},'install');
 }
 
 // ── SUBMIT RETURN ─────────────────────────────────────
@@ -695,7 +705,8 @@ async function send(payload, type) {
       quotationNo: payload.quotationNo || '',
       qty:         String(payload.qty),
       date:        payload.date  || '',
-      notes:       payload.notes || ''
+      notes:       payload.notes || '',
+      puSealant:   payload.puSealant || '0'
     });
     hideLoading();
     if(d.success){

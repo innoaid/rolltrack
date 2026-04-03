@@ -693,12 +693,65 @@ function renderApprovals() {
     el.innerHTML = `<div class="empty"><div class="empty-i">✅</div><p>No pending submissions</p></div>`;
     return;
   }
+  const PU_SEALANT_COST = 18;
   const icons = {pickup:'📦',install:'🔧',return:'↩️'};
   const lbls  = {pickup:'Pickup',install:'Installation',return:'Return'};
   const qtMap = {};
   (D.quotations||[]).forEach(q => { qtMap[q.quotationNo] = q; });
   el.innerHTML = pend.map(s => {
     const qt   = s.quotationNo ? qtMap[s.quotationNo] : null;
+    const isInstall = s.formType === 'install';
+
+    if (isInstall) {
+      const qty = s.qty || 0;
+      const totalSqft = qt ? (qt.totalSqft || 0) : 0;
+      const rate = qty <= 4 ? 190 : qty <= 9 ? 170 : 150;
+      const labourCost = qty * rate;
+      const labourPerSqft = totalSqft > 0 ? (labourCost / totalSqft).toFixed(2) : '—';
+      const pu = s.puSealant || 0;
+      const puCostPerSqft = (pu > 0 && totalSqft > 0) ? ((pu * PU_SEALANT_COST) / totalSqft).toFixed(2) : null;
+      const puQtyPerSqft = (pu > 0 && totalSqft > 0) ? Math.round(totalSqft / pu) : null;
+
+      return `
+      <div class="appr-card" id="appr_${s.id}">
+        <div style="padding:12px 13px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border)">
+          <div>
+            <div style="font-size:10px;font-weight:800;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Installation Report · <span style="background:var(--orange-l);padding:2px 6px;border-radius:10px">PENDING</span></div>
+            <div style="font-size:13px;font-weight:700">${s.subconName||s.subconCode}</div>
+            <div style="font-size:11px;color:var(--muted)">${fmtDate(s.date||s.timestamp)}</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:800;color:var(--orange);line-height:1">${qty}</div>
+            <div style="font-size:10px;color:var(--muted);font-weight:700">rolls</div>
+            ${totalSqft ? `<div style="font-size:10px;color:var(--muted);margin-top:2px">${fmtN(totalSqft)} sqft total</div>` : ''}
+            <div style="font-size:10px;color:var(--blue);margin-top:1px">RM ${labourPerSqft}/sqft labour</div>
+          </div>
+        </div>
+        ${qt ? `<div style="padding:10px 13px;border-bottom:1px solid var(--border)">
+          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Quotation</div>
+          <div style="font-size:12px;font-weight:600">Customer: ${qt.clientName||'—'}</div>
+          <div style="font-size:12px;font-weight:600">${s.quotationNo} — ${qt.projectName||''}</div>
+          ${qt.siteAddress ? `<div style="font-size:11px;color:var(--muted);margin-top:2px">${qt.siteAddress}</div>` : ''}
+        </div>` : ''}
+        <div style="padding:10px 13px;border-bottom:1px solid var(--border)">
+          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Submission Details</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px">
+            <div style="color:var(--muted)">Rolls submitted</div><div style="font-weight:700">${qty} rolls</div>
+            <div style="color:var(--muted)">PU sealant used</div><div style="font-weight:700">${pu > 0 ? pu + ' pcs' : '—'}</div>
+            ${pu > 0 && puCostPerSqft ? `<div style="color:var(--muted)">PU cost/sqft</div><div style="font-weight:700">RM ${puCostPerSqft}/sqft</div>` : ''}
+            ${pu > 0 && puQtyPerSqft ? `<div style="color:var(--muted)">PU qty/sqft</div><div style="font-weight:700">1 pc / ${puQtyPerSqft} sqft</div>` : ''}
+          </div>
+          ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Notes: ${s.notes}</div>` : ''}
+        </div>
+        <div style="padding:0 12px 8px;margin-top:6px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>
+        <div class="appr-actions">
+          <button class="appr-approve" onclick="approve('${s.id}','${s.formType}')">✅ Approve</button>
+          <button class="appr-reject"  onclick="openReject('${s.id}','${s.formType}','${(s.quotationNo||'').replace(/'/g,"\\'")}')">❌ Reject</button>
+        </div>
+      </div>`;
+    }
+
+    // Non-install cards (pickup/return) — original layout
     const proj = qt ? (qt.projectName || qt.clientName || '') : '';
     const qLine = s.quotationNo && s.quotationNo !== s.subconName && s.quotationNo !== s.subconCode
       ? `<strong>${s.quotationNo}</strong>${proj ? ' — ' + proj : ''}<br>` : '';
@@ -716,7 +769,6 @@ function renderApprovals() {
         </div>
         <div class="appr-qty ${s.formType}">${s.qty}</div>
       </div>
-      ${s.formType === 'install' ? `<div style="padding:0 12px 8px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>` : ''}
       <div class="appr-actions">
         <button class="appr-approve" onclick="approve('${s.id}','${s.formType}')">✅ Approve</button>
         <button class="appr-reject"  onclick="openReject('${s.id}','${s.formType}','${(s.quotationNo||'').replace(/'/g,"\\'")}')">❌ Reject</button>
