@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1923">
+<title>RollTrack Pro — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0f1923;--card:#162130;--card2:#1c2b3a;--border:#1e3248;--ink:#e8f0f8;--muted:#4a6480;--teal:#00d4aa;--teal-l:rgba(0,212,170,.12);--red:#ff4f4f;--red-l:rgba(255,79,79,.12)}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;overflow-x:hidden;max-width:480px;margin:0 auto}
+.login-wrap{display:flex;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center}
+.login-wrap::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(0,212,170,.08) 0%,transparent 70%);pointer-events:none}
+.brand{font-family:'Bebas Neue',sans-serif;font-size:32px;letter-spacing:1px;color:var(--teal);margin-bottom:4px}
+.brand-sub{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:32px}
+.login-card{background:var(--card);border:1.5px solid var(--border);border-radius:16px;padding:28px 24px;width:100%;max-width:320px;position:relative}
+.login-title{font-size:16px;font-weight:800;margin-bottom:20px;color:var(--ink)}
+.fg{margin-bottom:14px;text-align:left}
+.flabel{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px;display:block}
+input{width:100%;background:var(--card2);border:1.5px solid var(--border);border-radius:10px;color:var(--ink);font-family:'Nunito',sans-serif;font-size:15px;font-weight:600;padding:12px 14px;outline:none;-webkit-appearance:none;appearance:none;transition:border-color .18s}
+input:focus{border-color:var(--teal);background:#1a2f40}
+.pin-input{text-align:center;font-size:24px;letter-spacing:6px}
+.code-input{text-transform:uppercase;font-size:16px;font-weight:800;letter-spacing:1px}
+.login-btn{width:100%;padding:15px;border:none;border-radius:12px;background:var(--teal);color:#000;font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;cursor:pointer;transition:all .18s;margin-top:4px}
+.login-btn:active{transform:scale(.97)}
+.login-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.error-msg{color:var(--red);font-size:12px;font-weight:700;text-align:center;margin-bottom:10px;display:none}
+.loading{display:none;align-items:center;justify-content:center;gap:10px;margin-top:12px}
+.loading.show{display:flex}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:12px;color:var(--muted);font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="brand">RollTrack Pro</div>
+  <div class="brand-sub">Innovation AID Sdn Bhd</div>
+
+  <div class="login-card">
+    <div class="login-title">Login / Log Masuk</div>
+
+    <div class="fg">
+      <label class="flabel">User Code / Kod Pengguna</label>
+      <input type="text" id="userCode" class="code-input" placeholder="e.g. SC01, SC02, ADMIN" autocomplete="off">
+    </div>
+
+    <div class="fg">
+      <label class="flabel">PIN</label>
+      <input type="password" id="pinInput" class="pin-input" inputmode="numeric" maxlength="6" placeholder="- - - -">
+    </div>
+
+    <div class="error-msg" id="errMsg">Wrong code or PIN / Kod atau PIN salah</div>
+
+    <button class="login-btn" id="loginBtn" onclick="doLogin()">LOG IN / MASUK</button>
+
+    <div class="loading" id="loadingEl">
+      <div class="spinner"></div>
+      <div class="loading-txt">Logging in...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
+const SESSION_KEY = 'rolltrack_login_session';
+
+const REDIRECTS = {
+  'ADMIN': 'rolltrack_admin.html',
+  'SC01':  'subcon_form_SC01.html',
+  'SC02':  'subcon_form_SC02.html',
+  'SC03':  'subcon_form_SC03.html',
+  'SC04':  'subcon_form_SC04.html'
+};
+
+// Check if already logged in
+(function() {
+  try {
+    var s = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+    if (s.userCode && s.timestamp && (Date.now() - s.timestamp < 12*60*60*1000)) {
+      var dest = REDIRECTS[s.userCode.toUpperCase()];
+      if (dest) { window.location.href = dest; return; }
+    }
+  } catch(e) {}
+})();
+
+function jsonp(params) {
+  return new Promise(function(resolve, reject) {
+    var cb = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    var to = setTimeout(function() { cleanup(); reject(new Error('timeout')); }, 15000);
+    window[cb] = function(data) { cleanup(); resolve(data); };
+    function cleanup() {
+      clearTimeout(to); delete window[cb];
+      var s = document.getElementById('jp_' + cb); if (s) s.remove();
+    }
+    params.callback = cb;
+    var qs = Object.keys(params).map(function(k) { return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
+    var s = document.createElement('script');
+    s.id = 'jp_' + cb;
+    s.src = API + '?' + qs;
+    s.onerror = function() { cleanup(); reject(new Error('network')); };
+    document.head.appendChild(s);
+  });
+}
+
+async function doLogin() {
+  var code = document.getElementById('userCode').value.trim().toUpperCase();
+  var pin  = document.getElementById('pinInput').value.trim();
+  if (!code || !pin) return;
+
+  document.getElementById('errMsg').style.display = 'none';
+  document.getElementById('loginBtn').disabled = true;
+  document.getElementById('loadingEl').classList.add('show');
+
+  try {
+    var res = await jsonp({ action:'login', userCode: code, pin: pin });
+    if (res.success) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({
+        userCode: res.userCode,
+        userName: res.userName,
+        userType: res.userType,
+        timestamp: Date.now()
+      }));
+      var dest = REDIRECTS[res.userCode.toUpperCase()];
+      if (dest) {
+        window.location.href = dest;
+      } else {
+        document.getElementById('errMsg').textContent = 'No page configured for ' + res.userCode;
+        document.getElementById('errMsg').style.display = 'block';
+      }
+    } else {
+      document.getElementById('errMsg').textContent = 'Wrong code or PIN / Kod atau PIN salah';
+      document.getElementById('errMsg').style.display = 'block';
+    }
+  } catch(e) {
+    document.getElementById('errMsg').textContent = 'Connection error / Ralat sambungan';
+    document.getElementById('errMsg').style.display = 'block';
+  }
+
+  document.getElementById('loginBtn').disabled = false;
+  document.getElementById('loadingEl').classList.remove('show');
+}
+
+// Enter key submits
+document.getElementById('pinInput').addEventListener('keydown', function(e) { if (e.key === 'Enter') doLogin(); });
+document.getElementById('userCode').addEventListener('keydown', function(e) { if (e.key === 'Enter') document.getElementById('pinInput').focus(); });
+</script>
+</body>
+</html>

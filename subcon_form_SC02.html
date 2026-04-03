@@ -194,26 +194,8 @@ body{max-width:480px;margin:0 auto}
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
-<!-- ═══ LOGIN SCREEN ═══ -->
-<div class="screen show" id="s-login" style="background:var(--bg);align-items:center;justify-content:center;text-align:center;padding:32px 24px">
-  <div style="margin-bottom:24px">
-    <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;color:var(--teal)">RollTrack Pro</div>
-    <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-top:4px">INNOVATION AID SDN BHD</div>
-  </div>
-  <div class="company-badge" style="margin-bottom:24px">
-    <div class="company-icon">S</div>
-    <div class="company-name">Md Shahazan</div>
-  </div>
-  <div style="background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:300px">
-    <div style="font-size:13px;font-weight:800;color:var(--ink);margin-bottom:14px">Enter PIN / Masukkan PIN</div>
-    <input type="password" id="loginPin" inputmode="numeric" maxlength="6" placeholder="• • • •" style="text-align:center;font-size:28px;letter-spacing:8px;padding:14px;margin-bottom:8px;color:var(--teal)">
-    <div id="loginError" style="color:var(--red);font-size:12px;font-weight:700;margin-bottom:8px;display:none">Wrong PIN / PIN salah</div>
-    <button style="width:100%;padding:14px;border:none;border-radius:10px;background:var(--teal);color:#000;font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:1px;cursor:pointer" onclick="doLogin()">LOG IN / MASUK</button>
-  </div>
-</div>
-
 <!-- ═══ HOME SCREEN ═══ -->
-<div class="screen" id="s-home">
+<div class="screen show" id="s-home">
   <div class="home-top">
     <div class="brand" style="display:flex;align-items:center;justify-content:center;gap:10px">ROLLTRACK PRO · Innovation AID
       <button onclick="refreshData()" style="background:none;border:1px solid var(--border);border-radius:8px;padding:3px 8px;cursor:pointer;font-size:13px;color:var(--muted)" title="Refresh" id="refreshBtn">🔄</button>
@@ -550,55 +532,25 @@ function jsonp(params) {
   });
 }
 
-// ── LOGIN / SESSION ──────────────────────────────────
-const SC_SESSION_KEY = 'rolltrack_sc02_session';
-const SC_SESSION_TTL = 12 * 60 * 60 * 1000; // 12 hours
-
-function checkSession() {
-  try {
-    const s = JSON.parse(localStorage.getItem(SC_SESSION_KEY) || '{}');
-    if (s.loggedIn && s.timestamp && (Date.now() - s.timestamp < SC_SESSION_TTL)) {
-      showScreen('s-home');
-      initDates();
-      loadSubconData();
-      return;
-    }
-  } catch(e) {}
-  showScreen('s-login');
-}
-
-async function doLogin() {
-  const pin = document.getElementById('loginPin').value.trim();
-  if (!pin) return;
-  document.getElementById('loginError').style.display = 'none';
-  showLoading('Logging in...');
-  try {
-    const res = await jsonp({ action:'login', userCode: SUBCON_CODE, pin: pin });
-    hideLoading();
-    if (res.success) {
-      localStorage.setItem(SC_SESSION_KEY, JSON.stringify({ loggedIn: true, timestamp: Date.now() }));
-      showScreen('s-home');
-      initDates();
-      loadSubconData();
-    } else {
-      document.getElementById('loginError').style.display = 'block';
-    }
-  } catch(e) {
-    hideLoading();
-    document.getElementById('loginError').textContent = 'Connection error / Ralat sambungan';
-    document.getElementById('loginError').style.display = 'block';
+// ── SESSION CHECK (redirect to login.html if invalid) ──
+(function() {
+  const s = JSON.parse(localStorage.getItem('rolltrack_login_session') || '{}');
+  const expired = !s.timestamp || (Date.now() - s.timestamp > 12*60*60*1000);
+  if (expired || !s.userCode || s.userCode !== SUBCON_CODE) {
+    window.location.href = 'login.html';
   }
-}
+})();
 
-function initDates() {
-  const today = new Date().toISOString().split('T')[0];
-  ['pu_date','in_date','re_date'].forEach(id => { const e=document.getElementById(id); if(e) e.value=today; });
+function logout() {
+  localStorage.removeItem('rolltrack_login_session');
+  window.location.href = 'login.html';
 }
 
 // ── INIT ─────────────────────────────────────────────
 window.addEventListener('load', () => {
-  document.getElementById('loginPin').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-  checkSession();
+  const today = new Date().toISOString().split('T')[0];
+  ['pu_date','in_date','re_date'].forEach(id => { const e=document.getElementById(id); if(e) e.value=today; });
+  loadSubconData();
 });
 
 function showSync(txt) {
