@@ -847,8 +847,8 @@ function renderQuotations() {
       <div class="qt-hdr">
         <div class="qt-top">
           <div>
-            <div class="qt-no">${q.quotationNo}${q.assignedSubcon ? ` <span style="font-size:9px;background:var(--s3);color:var(--muted);padding:2px 6px;border-radius:10px;font-weight:700;margin-left:4px">${SUBCONS_MAP[q.assignedSubcon]||q.assignedSubcon}</span>` : ''}</div>
-            <div class="qt-client">${q.clientName||'—'} · ${q.projectName||''}</div>
+            <div class="qt-no">${q.quotationNo} · ${q.clientName||'—'}${q.assignedSubcon ? ` <span style="font-size:9px;background:var(--s3);color:var(--muted);padding:2px 6px;border-radius:10px;font-weight:700;margin-left:4px">${SUBCONS_MAP[q.assignedSubcon]||q.assignedSubcon}</span>` : ''}</div>
+            <div class="qt-client">${q.projectName||''}</div>
             ${sqft ? `<div class="qt-client" style="margin-top:2px">📐 ${fmtN(sqft)} sqft &nbsp;·&nbsp; RM ${fmtN(q.ratePerSqft)}/sqft</div>` : ''}
           </div>
           <div style="display:flex;flex-direction:column;align-items:flex-end;gap:5px">
