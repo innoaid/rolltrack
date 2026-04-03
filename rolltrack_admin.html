@@ -820,10 +820,13 @@ function renderQuotations() {
   const q = (ge('qtSearch') ? ge('qtSearch').value : '').toLowerCase().trim();
   const sf = (ge('qtSubconFilter') ? ge('qtSubconFilter').value : '');
   let filtered = raw;
+  const scNames = {'SC01':'md atik','SC02':'md shahazan','SC03':'md mohiuddin','SC04':'md foysel'};
   if (q) filtered = filtered.filter(qt =>
     (qt.quotationNo||'').toLowerCase().includes(q) ||
     (qt.clientName||'').toLowerCase().includes(q) ||
-    (qt.projectName||'').toLowerCase().includes(q)
+    (qt.projectName||'').toLowerCase().includes(q) ||
+    (qt.assignedSubcon||'').toLowerCase().includes(q) ||
+    (scNames[qt.assignedSubcon]||'').includes(q)
   );
   if (sf === 'UNASSIGNED') filtered = filtered.filter(qt => !qt.assignedSubcon);
   else if (sf) filtered = filtered.filter(qt => qt.assignedSubcon === sf);
