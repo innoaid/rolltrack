@@ -820,6 +820,15 @@ function fmtHistDate(ts) {
   return d.toLocaleDateString('en-MY',{day:'numeric',month:'short',year:'numeric'});
 }
 
+function getNextMonday(fromDate) {
+  const d = new Date(fromDate);
+  const day = d.getDay();
+  const daysUntil = day === 1 ? 7 : (8 - day) % 7;
+  d.setDate(d.getDate() + (daysUntil || 7));
+  d.setHours(0,0,0,0);
+  return d;
+}
+
 function renderHistory() {
   const sel = document.getElementById('histMonth');
   const [filterYear, filterMonth] = sel.value.split('-').map(Number);
@@ -876,22 +885,57 @@ function renderHistory() {
       const p2amt = Number(p['Payment2Amount']||0);
       const p2st = p['Payment2Status']||'unpaid';
       const p2dt = p['Payment2Date']||'';
+      const created = parseHistDate(p['CreatedAt']);
+
+      // P1 expected date: next Monday after created
+      const p1Due = created ? getNextMonday(created) : null;
+      // P2 expected date: if P1 paid, P1 paid date + 14 days; else P1 due + 14 days
+      let p2Due = null;
+      if (p1st === 'paid' && p1dt) {
+        p2Due = new Date(parseHistDate(p1dt)); p2Due.setDate(p2Due.getDate() + 14);
+      } else if (p1Due) {
+        p2Due = new Date(p1Due); p2Due.setDate(p2Due.getDate() + 14);
+      }
+
+      // P1 date line
+      let p1DateHtml = '';
+      if (p1st === 'paid' && p1dt) {
+        p1DateHtml = '<div style="font-size:11px;color:var(--teal);font-weight:600;margin:-2px 0 4px">Received: '+fmtHistDate(p1dt)+'</div>';
+      } else if (p1Due) {
+        p1DateHtml = '<div style="font-size:11px;color:var(--amber);font-weight:600;margin:-2px 0 4px">Expected: '+fmtHistDate(p1Due)+'</div>';
+      }
+
+      // P2 date line
+      let p2DateHtml = '';
+      if (p2st === 'paid' && p2dt) {
+        p2DateHtml = '<div style="font-size:11px;color:var(--teal);font-weight:600;margin:-2px 0 4px">Received: '+fmtHistDate(p2dt)+'</div>';
+      } else if (p1st === 'paid' && p2Due) {
+        p2DateHtml = '<div style="font-size:11px;color:var(--amber);font-weight:600;margin:-2px 0 4px">Expected: '+fmtHistDate(p2Due)+'</div>';
+      } else if (p2Due) {
+        p2DateHtml = '<div style="font-size:11px;color:var(--muted);font-weight:600;margin:-2px 0 4px">Expected: '+fmtHistDate(p2Due)+'</div>';
+      }
+
+      // P2 status label
+      const p2Label = (p1st !== 'paid' && p2st !== 'paid') ? 'NOT DUE' : p2st.toUpperCase();
+      const p2Cls = (p1st !== 'paid' && p2st !== 'paid') ? 'unpaid' : p2st;
+
       return `<div class="pay-card">
         <div class="pay-card-hdr">
           <div class="pay-card-qno">${p['QuotationNo']||'—'}</div>
           <div class="pay-card-total">RM ${total.toLocaleString('en-MY',{minimumFractionDigits:2})}</div>
         </div>
         <div class="pay-card-meta">${rolls} rolls × RM ${rate.toLocaleString('en-MY')} / roll</div>
+        <div style="border-top:1px solid var(--border);margin:6px 0"></div>
         <div class="pay-line">
           <span>P1: RM ${p1amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
           <span class="pay-status ${p1st}">${p1st.toUpperCase()}</span>
         </div>
-        ${p1st==='paid'&&p1dt ? '<div class="pay-due">Paid: '+fmtHistDate(p1dt)+'</div>' : ''}
+        ${p1DateHtml}
         <div class="pay-line">
           <span>P2: RM ${p2amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
-          <span class="pay-status ${p2st}">${p2st.toUpperCase()}</span>
+          <span class="pay-status ${p2Cls}">${p2Label}</span>
         </div>
-        ${p2st==='paid'&&p2dt ? '<div class="pay-due">Paid: '+fmtHistDate(p2dt)+'</div>' : p2st!=='paid' ? '<div class="pay-due">Due after P1 paid + 14 days</div>' : ''}
+        ${p2DateHtml}
       </div>`;
     }).join('');
   }
