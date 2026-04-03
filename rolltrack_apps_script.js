@@ -435,18 +435,43 @@ function getQuotations() {
   var data    = sheet.getDataRange().getValues();
   if (data.length <= 1) return [];
   var headers = data[0];
+  // Find AssignedSubcon column (may be beyond getDataRange if header missing)
+  var asIdx = -1;
+  for (var h = 0; h < headers.length; h++) {
+    if (String(headers[h]).trim() === 'AssignedSubcon') { asIdx = h; break; }
+  }
+  // If header not found, check column O (index 14) directly
+  if (asIdx < 0) asIdx = 14;
   var result  = [];
   for (var r = 1; r < data.length; r++) {
     if (!data[r][0]) continue;
     var obj = {};
     for (var c = 0; c < headers.length; c++) {
+      var key = String(headers[c]).trim();
+      if (!key) continue;
       var v = data[r][c];
-      obj[headers[c].charAt(0).toLowerCase() + headers[c].slice(1)] =
+      obj[key.charAt(0).toLowerCase() + key.slice(1)] =
         v instanceof Date ? v.toISOString() : v;
+    }
+    // Ensure assignedSubcon is always set
+    if (!obj.assignedSubcon && data[r].length > asIdx) {
+      obj.assignedSubcon = String(data[r][asIdx] || '').trim();
     }
     result.push(obj);
   }
   return result;
+}
+
+function fixQuotationsHeader() {
+  var sheet = getSheet('Quotations');
+  if (!sheet) return;
+  var header = sheet.getRange(1, 15).getValue();
+  if (!header || String(header).trim() === '') {
+    sheet.getRange(1, 15).setValue('AssignedSubcon');
+    Logger.log('Set Quotations O1 = AssignedSubcon');
+  } else {
+    Logger.log('Quotations O1 already set: ' + header);
+  }
 }
 
 function addQuotation(p) {
