@@ -80,6 +80,9 @@ function doGet(e) {
       case 'getQuotations':
         result = { success: true, quotations: getQuotations() };
         break;
+      case 'login':
+        result = handleLogin(p);
+        break;
       default:
         result = { success: false, error: 'Unknown action: ' + (p.action || '(none)') };
     }
@@ -862,6 +865,52 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
     payment1:  calc.payment1,
     payment2:  calc.payment2
   };
+}
+
+// ════════════════════════════════════════════════════════════════
+// LOGIN / CREDENTIALS
+// ════════════════════════════════════════════════════════════════
+
+function handleLogin(p) {
+  var sheet = getSheet('Credentials');
+  if (!sheet) return { success: false, error: 'Credentials sheet not found. Run setupCredentials().' };
+  var data = sheet.getDataRange().getValues();
+  var userCode = String(p.userCode || '').trim().toUpperCase();
+  var pin      = String(p.pin || '').trim();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]).trim().toUpperCase() === userCode &&
+        String(data[i][4]).trim() === pin &&
+        (data[i][5] === true || String(data[i][5]).toUpperCase() === 'TRUE')) {
+      return {
+        success:  true,
+        userCode: String(data[i][0]),
+        userName: String(data[i][1]),
+        userType: String(data[i][2])
+      };
+    }
+  }
+  return { success: false, error: 'Invalid code or PIN' };
+}
+
+function setupCredentials() {
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName('Credentials');
+  if (!sheet) {
+    sheet = ss.insertSheet('Credentials');
+  }
+  var existing = sheet.getDataRange().getValues();
+  if (existing.length <= 1) {
+    sheet.clear();
+    sheet.appendRow(['UserCode', 'UserName', 'UserType', 'Phone', 'PIN', 'Active']);
+    sheet.appendRow(['ADMIN', 'Admin', 'admin', '', 'admin123', true]);
+    sheet.appendRow(['SC01', 'Md Atik', 'subcon', '', '1234', true]);
+    sheet.appendRow(['SC02', 'Md Shahazan', 'subcon', '', '1234', true]);
+    sheet.appendRow(['SC03', 'Md Mohiuddin', 'subcon', '', '1234', true]);
+    sheet.appendRow(['SC04', 'Md Foysel', 'subcon', '', '1234', true]);
+    Logger.log('Credentials sheet created with default users');
+  } else {
+    Logger.log('Credentials sheet already has data (' + existing.length + ' rows)');
+  }
 }
 
 // ── markPayment ───────────────────────────────────────────────────

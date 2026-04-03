@@ -243,11 +243,29 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="tst" id="tst"></div>
 <div class="lov" id="lov"><div class="spin"></div><div class="spin-tx" id="spin-tx">Loading...</div></div>
 
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" style="display:flex;min-height:100vh;align-items:center;justify-content:center;background:var(--bg);flex-direction:column;gap:16px;padding:24px">
+  <div style="text-align:center;margin-bottom:8px">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:800;color:var(--orange)">Roll<span style="color:var(--ink)">Track</span> <span style="color:var(--muted)">Pro</span></div>
+    <div style="font-size:11px;color:var(--muted);font-weight:600;margin-top:2px">Innovation AID Sdn Bhd</div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:300px">
+    <div style="font-size:13px;font-weight:700;text-align:center;margin-bottom:16px">Admin Login</div>
+    <input type="password" id="loginPin" inputmode="numeric" maxlength="10" placeholder="Enter PIN" style="width:100%;text-align:center;font-size:22px;letter-spacing:4px;padding:14px;margin-bottom:8px">
+    <div id="loginError" style="color:var(--red);font-size:12px;font-weight:700;text-align:center;margin-bottom:8px;display:none">Wrong PIN / PIN salah</div>
+    <button class="btn btn-o" onclick="doLogin()" style="width:100%">Login</button>
+  </div>
+</div>
+
+<!-- MAIN APP (hidden until login) -->
+<div id="mainApp" style="display:none">
+
 <!-- HEADER -->
 <div class="hdr">
   <div class="hdr-top">
     <div class="logo"><em>Roll</em>Track <span style="color:#fff">Pro</span><small>Admin</small></div>
     <div style="display:flex;align-items:center;gap:4px">
+      <button onclick="doLogout()" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:9px;color:#888;font-family:'DM Sans',sans-serif" title="Logout">Logout</button>
       <input type="date" id="filterFrom" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
       <span style="color:#666;font-size:10px">to</span>
       <input type="date" id="filterTo" style="background:none;border:1px solid #444;border-radius:6px;padding:2px 4px;color:#ccc;font-family:'JetBrains Mono',monospace;font-size:10px;cursor:pointer;-webkit-appearance:none;appearance:none;width:105px" onchange="onDateRangeChange()">
@@ -474,6 +492,8 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   </div>
 </div>
 
+</div><!-- /mainApp -->
+
 <script>
 // ══════════════════════════════════════
 // CONFIG
@@ -530,7 +550,7 @@ window.addEventListener('load', () => {
   ge('filterFrom').value = toDateStr(filterFrom);
   ge('filterTo').value   = toDateStr(filterTo);
   loadCfg();
-  loadData();
+  checkSession();
 
   // Tab bar: wheel scroll + click-drag on desktop
   const tb = document.querySelector('.tabs');
@@ -1931,6 +1951,65 @@ tr:nth-child(even) td{background:#fafafa}
   if (w) { w.document.write(html); w.document.close(); }
   else toast('Allow pop-ups to view the report');
 }
+
+// ══════════════════════════════════════
+// LOGIN / SESSION
+// ══════════════════════════════════════
+const SESSION_KEY = 'rolltrack_admin_session';
+const SESSION_TTL = 8 * 60 * 60 * 1000; // 8 hours
+
+function checkSession() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+    if (s.loggedIn && s.timestamp && (Date.now() - s.timestamp < SESSION_TTL)) {
+      showMainApp();
+      return;
+    }
+  } catch(e) {}
+  showLoginScreen();
+}
+
+function showLoginScreen() {
+  ge('loginScreen').style.display = 'flex';
+  ge('mainApp').style.display = 'none';
+}
+
+function showMainApp() {
+  ge('loginScreen').style.display = 'none';
+  ge('mainApp').style.display = 'block';
+  loadData();
+}
+
+async function doLogin() {
+  const pin = ge('loginPin').value.trim();
+  if (!pin) return;
+  ge('loginError').style.display = 'none';
+  try {
+    const res = await jsonp({ action:'login', userCode:'ADMIN', pin: pin });
+    if (res.success) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify({ loggedIn: true, timestamp: Date.now(), user: res.userName }));
+      showMainApp();
+    } else {
+      ge('loginError').style.display = 'block';
+    }
+  } catch(e) {
+    ge('loginError').textContent = 'Connection error';
+    ge('loginError').style.display = 'block';
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem('rolltrack_admin_cache');
+  showLoginScreen();
+  ge('loginPin').value = '';
+}
+
+// Enter key on PIN input
+document.addEventListener('DOMContentLoaded', () => {
+  const pinInput = document.getElementById('loginPin');
+  if (pinInput) pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
 </script>
 </body>
 </html>
