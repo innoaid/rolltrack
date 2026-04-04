@@ -240,6 +240,11 @@ function updateSubconBalance(subconCode, formType, qty) {
 function getPendingSubmissions() {
   var sheet = getSheet('Submissions');
   if (!sheet) return [];
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+  var headers = data[0];
+  var puIdx = headers.indexOf('PUSealant');
+  if (puIdx < 0) puIdx = 14; // fallback to column O
   var rows = sheetToObjects(sheet);
   var result = [];
   for (var i = 0; i < rows.length; i++) {
@@ -256,7 +261,7 @@ function getPendingSubmissions() {
       date:        r.ActivityDate   || '',
       notes:       r.Notes          || '',
       status:      r.Status         || '',
-      puSealant:   Number(r.PUSealant) || 0
+      puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0
     });
   }
   return result;
@@ -265,6 +270,11 @@ function getPendingSubmissions() {
 function getAllSubmissions() {
   var sheet = getSheet('Submissions');
   if (!sheet) return { success: true, submissions: [] };
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { success: true, submissions: [] };
+  var headers = data[0];
+  var puIdx = headers.indexOf('PUSealant');
+  if (puIdx < 0) puIdx = 14;
   var rows = sheetToObjects(sheet);
   var result = [];
   for (var i = 0; i < rows.length; i++) {
@@ -280,7 +290,7 @@ function getAllSubmissions() {
       activityDate: r.ActivityDate   || '',
       notes:        r.Notes          || '',
       status:       r.Status         || '',
-      puSealant:    Number(r.PUSealant) || 0
+      puSealant:    Number(r.PUSealant || data[i + 1][puIdx]) || 0
     });
   }
   return { success: true, submissions: result };
@@ -471,6 +481,18 @@ function fixQuotationsHeader() {
     Logger.log('Set Quotations O1 = AssignedSubcon');
   } else {
     Logger.log('Quotations O1 already set: ' + header);
+  }
+}
+
+function fixSubmissionsHeader() {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return;
+  var header = sheet.getRange(1, 15).getValue();
+  if (!header || String(header).trim() === '') {
+    sheet.getRange(1, 15).setValue('PUSealant');
+    Logger.log('Set Submissions O1 = PUSealant');
+  } else {
+    Logger.log('Submissions O1 already set: ' + header);
   }
 }
 
