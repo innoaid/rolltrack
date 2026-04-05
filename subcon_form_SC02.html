@@ -222,6 +222,7 @@ body{max-width:480px;margin:0 auto}
         </div>
       </div>
     </div>
+    <div id="pendingNotice" style="display:none;background:#fff3cd;border-radius:8px;padding:8px 12px;font-size:12px;color:#856404;margin:8px 20px 0"></div>
   </div>
 
   <div class="actions-title">What do you want to do? / Apa yang anda nak buat?</div>
@@ -560,19 +561,42 @@ function showSync(txt) {
   if (el) el.textContent = txt;
 }
 
+var pendingSubmissions = [];
+
 function applySubconData(d) {
   balance = d.balance || 0;
   document.getElementById('balNum').textContent         = balance;
   document.getElementById('totalPickup').textContent    = d.totalPickup    || 0;
   document.getElementById('totalInstalled').textContent = d.totalInstalled || 0;
   quotations = d.quotations || [];
-  const sel  = document.getElementById('in_quot');
+
+  // Get pending install quotation numbers
+  var pendingQtNos = pendingSubmissions
+    .filter(function(s) { return s.formType === 'install' && String(s.status||'').toLowerCase() === 'pending'; })
+    .map(function(s) { return s.quotationNo; });
+
+  // Build dropdown excluding pending quotations
+  var sel = document.getElementById('in_quot');
   sel.innerHTML = '<option value="">— Select / Pilih —</option>';
-  quotations.filter(q => q.status === 'active' || !q.status).forEach(q => {
-    const o = document.createElement('option');
-    o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
-    sel.appendChild(o);
-  });
+  quotations
+    .filter(function(q) { return q.status === 'active' || !q.status; })
+    .filter(function(q) { return pendingQtNos.indexOf(q.no) === -1; })
+    .forEach(function(q) {
+      var o = document.createElement('option');
+      o.value = q.no; o.textContent = q.no + ' — ' + (q.project||q.client);
+      sel.appendChild(o);
+    });
+
+  // Show pending notice
+  var notice = document.getElementById('pendingNotice');
+  if (notice) {
+    if (pendingQtNos.length > 0) {
+      notice.textContent = '\u23f3 ' + pendingQtNos.length + ' submission(s) pending admin approval';
+      notice.style.display = 'block';
+    } else {
+      notice.style.display = 'none';
+    }
+  }
 }
 
 async function loadSubconData() {
@@ -590,15 +614,26 @@ async function loadSubconData() {
     }
   } catch(e) {}
 
-  // 2. Background refresh
+  // 2. Background refresh — load subcon data + submissions in parallel
   showSync('Refreshing...');
   try {
-    const d = await jsonp({ action:'getSubcon', code:SUBCON_CODE });
+    var results = await Promise.all([
+      jsonp({ action:'getSubcon', code:SUBCON_CODE }),
+      jsonp({ action:'getAllSubmissions' })
+    ]);
+    var d = results[0];
+    var subRes = results[1];
+    // Filter submissions for this subcon
+    if (subRes.success && subRes.submissions) {
+      pendingSubmissions = subRes.submissions.filter(function(s) {
+        return String(s.subconCode).trim() === SUBCON_CODE;
+      });
+    }
     if (d.success) {
       applySubconData(d);
       try { localStorage.setItem(CACHE_KEY, JSON.stringify({ data: d, ts: Date.now() })); } catch(e) {}
       showSync('✓ Updated');
-      setTimeout(() => showSync(''), 3000);
+      setTimeout(function() { showSync(''); }, 3000);
     } else {
       showSync('');
     }
