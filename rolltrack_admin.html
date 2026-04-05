@@ -362,13 +362,20 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
       <div class="pay-sum-item"><div class="pay-sum-n" style="color:var(--red)">—</div><div class="pay-sum-l">Outstanding</div></div>
     </div>
   </div>
+  <select id="paySubconFilter" onchange="renderPayments()" style="width:100%;margin-bottom:8px;font-size:13px;padding:8px">
+    <option value="">All Subcons</option>
+    <option value="SC01">Md Atik (SC01)</option>
+    <option value="SC02">Md Shahazan (SC02)</option>
+    <option value="SC03">Md Mohiuddin (SC03)</option>
+    <option value="SC04">Md Foysel (SC04)</option>
+  </select>
   <div class="chips" id="pay-chips">
     <div class="chip on" onclick="filterPayments('all',this)">All</div>
     <div class="chip" onclick="filterPayments('unpaid',this)">Unpaid</div>
     <div class="chip" onclick="filterPayments('partial',this)">Partial</div>
     <div class="chip" onclick="filterPayments('paid',this)">Paid</div>
   </div>
-  <button class="btn btn-b" style="margin-bottom:11px" onclick="generateReport()">📄 &nbsp;Generate SC01 Report</button>
+  <button class="btn btn-b" style="margin-bottom:11px" id="payReportBtn" onclick="generateReport()">📄 &nbsp;Generate Report</button>
   <div id="payList"></div>
 </div>
 
@@ -1340,11 +1347,19 @@ function renderPayments() {
   const pgEl = ge('pg-payments');
   if (!pgEl) return;
 
-  // Total outstanding banner (all-time, never filtered)
+  // Read subcon filter
+  const scf = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
+  const scFiltered = scf ? payData.filter(p => (p['SubconCode']||'') === scf) : payData;
+
+  // Update report button label
+  const reportBtn = ge('payReportBtn');
+  if (reportBtn) reportBtn.innerHTML = scf ? '📄 &nbsp;Generate ' + scf + ' Report' : '📄 &nbsp;Generate Report';
+
+  // Total outstanding banner (scoped to subcon filter)
   const bannerEl = ge('totalOutstandingBanner');
   if (bannerEl) {
     let allOwed = 0, allPaid = 0, unpaidCount = 0;
-    payData.forEach(p => {
+    scFiltered.forEach(p => {
       allOwed += Number(p['TotalAmount'] || 0);
       if (p['Payment1Status'] === 'paid') allPaid += Number(p['Payment1Amount'] || 0);
       if (p['Payment2Status'] === 'paid') allPaid += Number(p['Payment2Amount'] || 0);
@@ -1354,7 +1369,7 @@ function renderPayments() {
     const allOutstanding = allOwed - allPaid;
     if (allOutstanding > 0) {
       bannerEl.innerHTML = `<div style="background:var(--red-l);border:2px solid var(--red);border-radius:12px;padding:14px;margin-bottom:10px;text-align:center">
-        <div style="font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Outstanding</div>
+        <div style="font-size:11px;font-weight:800;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Total Outstanding${scf ? ' — '+scf : ''}</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:800;color:var(--red);line-height:1.1">RM ${fmtN(allOutstanding)}</div>
         <div style="font-size:12px;color:var(--muted);margin-top:4px">${unpaidCount} payment${unpaidCount !== 1 ? 's' : ''} unpaid</div>
       </div>`;
@@ -1366,11 +1381,11 @@ function renderPayments() {
   // Weekly summary (overdue, due this week, upcoming)
   renderWeeklySummary();
 
-  // Summary (all-time, not filtered by date)
+  // Summary (scoped to subcon filter)
   const sumEl = ge('pay-summary');
   if (sumEl) {
     let totalOwed = 0, totalPaid = 0;
-    payData.forEach(p => {
+    scFiltered.forEach(p => {
       totalOwed += Number(p['TotalAmount']  || 0);
       if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
       if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
@@ -1396,8 +1411,8 @@ function renderPayments() {
   if (!listEl) return;
 
   const filtered = payFilter === 'all'
-    ? payData
-    : payData.filter(p => payOverallStatus(p) === payFilter);
+    ? scFiltered
+    : scFiltered.filter(p => payOverallStatus(p) === payFilter);
 
   if (!filtered.length) {
     listEl.innerHTML = `<div class="empty"><div class="empty-i">💰</div><p>${payData.length ? 'No payments match this filter' : 'No payment records yet'}</p></div>`;
@@ -1523,7 +1538,9 @@ function buildWeeklyItems() {
 
   const overdue = [], dueThisWeek = [], upcoming = [];
 
-  payData.forEach(p => {
+  const scf2 = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
+  const weekData = scf2 ? payData.filter(p => (p['SubconCode']||'') === scf2) : payData;
+  weekData.forEach(p => {
     const name = p['SubconName'] || p['SubconCode'] || '?';
     const qno  = p['QuotationNo'] || '';
     const pid  = p['PaymentID'] || '';
