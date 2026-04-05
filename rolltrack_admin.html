@@ -1395,10 +1395,9 @@ function renderPayments() {
   const listEl = ge('payList');
   if (!listEl) return;
 
-  const dateFiltered = payData.filter(p => inDateRange(p['CreatedAt']));
   const filtered = payFilter === 'all'
-    ? dateFiltered
-    : dateFiltered.filter(p => payOverallStatus(p) === payFilter);
+    ? payData
+    : payData.filter(p => payOverallStatus(p) === payFilter);
 
   if (!filtered.length) {
     listEl.innerHTML = `<div class="empty"><div class="empty-i">💰</div><p>${payData.length ? 'No payments match this filter' : 'No payment records yet'}</p></div>`;
