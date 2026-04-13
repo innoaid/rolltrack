@@ -1072,6 +1072,45 @@ function calcQt() {
 
 function uploadPdfQt() { ge('pdfFileInput').click(); }
 
+async function callClaudeWithRetry(payload, apiKey, maxRetries) {
+  maxRetries = maxRetries || 3;
+  for (var attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify(payload)
+      });
+      var data = await response.json();
+      if (data.error && data.error.type === 'overloaded_error') {
+        if (attempt < maxRetries) {
+          var waitSecs = attempt * 3;
+          ge('spin-tx').textContent = 'API busy, retrying in ' + waitSecs + 's... (attempt ' + attempt + '/' + maxRetries + ')';
+          await new Promise(function(r) { setTimeout(r, waitSecs * 1000); });
+          continue;
+        }
+        throw new Error('API overloaded after ' + maxRetries + ' attempts. Please try again in a minute.');
+      }
+      if (data.error) {
+        if (data.error.type === 'authentication_error') localStorage.removeItem('claude_api_key');
+        throw new Error(data.error.message || 'API error');
+      }
+      return data;
+    } catch(err) {
+      if (err.message && err.message.includes('authentication')) throw err;
+      if (attempt === maxRetries) throw err;
+      var waitSecs = attempt * 3;
+      ge('spin-tx').textContent = 'Error, retrying in ' + waitSecs + 's... (attempt ' + attempt + '/' + maxRetries + ')';
+      await new Promise(function(r) { setTimeout(r, waitSecs * 1000); });
+    }
+  }
+}
+
 async function handlePdfFile(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -1090,31 +1129,18 @@ async function handlePdfFile(event) {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1000,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PdfData } },
-            { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD.' }
-          ]
-        }]
-      })
-    });
-    const data = await response.json();
-    if (data.error) {
-      if (data.error.type === 'authentication_error') localStorage.removeItem('claude_api_key');
-      throw new Error(data.error.message || 'API error');
-    }
+    ge('spin-tx').textContent = 'Sending to Claude...';
+    const data = await callClaudeWithRetry({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PdfData } },
+          { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD.' }
+        ]
+      }]
+    }, apiKey);
     const text = data.content[0].text;
     const clean = text.replace(/```json|```/g, '').trim();
     const extracted = JSON.parse(clean);
