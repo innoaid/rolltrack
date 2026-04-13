@@ -396,6 +396,21 @@ body{max-width:480px;margin:0 auto}
       <div class="field-error" id="in_photo_err">Photo is required / Foto diperlukan</div>
     </div>
   </div>
+
+    <div class="fgroup" style="margin-top:16px;">
+      <label class="flabel">Additional Job Costs / Kos Tambahan <span style="font-weight:400;opacity:0.6;">(Optional)</span></label>
+      <div id="additionalCostsList"></div>
+      <button type="button" id="addCostBtn" onclick="addCostItem()" style="display:flex;align-items:center;gap:6px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:8px 14px;color:#7aafc9;font-size:13px;cursor:pointer;margin-top:8px;width:100%;justify-content:center;">+ Add cost item / Tambah kos</button>
+      <div id="additionalTotal" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.08);border-radius:8px;border:1px solid rgba(255,180,0,0.15);">
+        <div style="display:flex;justify-content:space-between;font-size:13px;">
+          <span style="color:#a0b8c8;">Total additional / Jumlah tambahan</span>
+          <span id="additionalTotalAmt" style="font-weight:700;color:#f0c040;">RM 0.00</span>
+        </div>
+        <div style="font-size:11px;color:#7a9aaa;margin-top:3px;">Paid in full with Payment 1 / Dibayar penuh dengan Bayaran 1</div>
+      </div>
+    </div>
+
+  </div>
   <div class="submit-area">
     <button class="submit-btn amber" id="in_submit" onclick="submitInstall()">🔧 SUBMIT REPORT</button>
   </div>
@@ -722,6 +737,30 @@ async function submitPickup() {
     notes:document.getElementById('pu_notes').value,quotationNo:''},'pickup');
 }
 
+// ── ADDITIONAL COSTS ─────────────────────────────────
+var costItemCount=0;
+function addCostItem(){
+  costItemCount++;var id='cost_'+costItemCount;
+  var div=document.createElement('div');div.id=id;
+  div.style.cssText='display:flex;gap:8px;align-items:center;margin-bottom:8px;';
+  div.innerHTML='<input type="text" placeholder="Description / Keterangan" id="'+id+'_desc" style="flex:2;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 10px;color:#e0e8f0;font-size:13px;">'
+    +'<input type="number" placeholder="RM" id="'+id+'_amt" min="0" step="0.01" oninput="updateCostTotal()" style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);border-radius:8px;padding:8px 10px;color:#e0e8f0;font-size:13px;">'
+    +'<button type="button" onclick="removeCostItem(\''+id+'\')" style="width:28px;height:28px;border-radius:50%;background:rgba(255,80,80,0.12);border:1px solid rgba(255,80,80,0.2);color:#ff6060;font-size:16px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;">\u00d7</button>';
+  document.getElementById('additionalCostsList').appendChild(div);updateCostTotal();
+}
+function removeCostItem(id){var el=document.getElementById(id);if(el)el.remove();updateCostTotal();}
+function updateCostTotal(){
+  var items=document.querySelectorAll('#additionalCostsList > div');var total=0;
+  items.forEach(function(item){total+=parseFloat(item.querySelector('input[type=number]').value)||0;});
+  var td=document.getElementById('additionalTotal'),ta=document.getElementById('additionalTotalAmt');
+  if(total>0){td.style.display='block';ta.textContent='RM '+total.toFixed(2);}else{td.style.display='none';}
+}
+function getAdditionalCosts(){
+  var items=document.querySelectorAll('#additionalCostsList > div');var costs=[];
+  items.forEach(function(item){var desc=item.querySelector('input[type=text]').value.trim();var amt=parseFloat(item.querySelector('input[type=number]').value)||0;if(desc&&amt>0)costs.push({desc:desc,amount:amt});});
+  return costs;
+}
+
 // ── SUBMIT INSTALL ────────────────────────────────────
 async function submitInstall() {
   let ok=true;
@@ -734,9 +773,10 @@ async function submitInstall() {
   // Balance check removed for testing phase
   const puSealant=parseInt(document.getElementById('in_pu_sealant').value)||0;
   lastSubmission={type:'install',qty,quot,date:document.getElementById('in_date').value};
+  var additionalCosts=getAdditionalCosts();
   await send({action:'submitSubconForm',subconCode:SUBCON_CODE,subconName:SUBCON_NAME,
     formType:'install',quotationNo:quot,qty,date:document.getElementById('in_date').value,
-    notes:document.getElementById('in_area').value,puSealant:String(puSealant)},'install');
+    notes:document.getElementById('in_area').value,puSealant:String(puSealant),additionalCosts:JSON.stringify(additionalCosts)},'install');
 }
 
 // ── SUBMIT RETURN ─────────────────────────────────────
@@ -766,7 +806,8 @@ async function send(payload, type) {
       qty:         String(payload.qty),
       date:        payload.date  || '',
       notes:       payload.notes || '',
-      puSealant:   payload.puSealant || '0'
+      puSealant:   payload.puSealant || '0',
+      additionalCosts: payload.additionalCosts || '[]'
     });
     hideLoading();
     if(d.success){
@@ -923,6 +964,8 @@ function renderHistory() {
       const rolls = Number(p['RollsInstalled']||0);
       const rate = Number(p['RateApplied']||0);
       const total = Number(p['TotalAmount']||0);
+      var ac=[]; try{ac=p.additionalCosts||[];if(typeof ac==='string')ac=JSON.parse(ac);}catch(e){ac=[];}
+      const addTotal=ac.reduce(function(s,c){return s+(Number(c.amount)||0);},0);
       const p1amt = Number(p['Payment1Amount']||0);
       const p1st = p['Payment1Status']||'unpaid';
       const p1dt = p['Payment1Date']||'';
@@ -971,15 +1014,17 @@ function renderHistory() {
         <div class="pay-card-meta">${rolls} rolls × RM ${rate.toLocaleString('en-MY')} / roll</div>
         <div style="border-top:1px solid var(--border);margin:6px 0"></div>
         <div class="pay-line">
-          <span>P1: RM ${p1amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
+          <span>${ac.length > 0 ? 'P1 (50% + additional)' : 'P1'}: RM ${p1amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
           <span class="pay-status ${p1st}">${p1st.toUpperCase()}</span>
         </div>
         ${p1DateHtml}
         <div class="pay-line">
-          <span>P2: RM ${p2amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
+          <span>${ac.length > 0 ? 'P2 (50% rolls)' : 'P2'}: RM ${p2amt.toLocaleString('en-MY',{minimumFractionDigits:2})}</span>
           <span class="pay-status ${p2Cls}">${p2Label}</span>
         </div>
         ${p2DateHtml}
+        ${ac.length > 0 ? '<div style="border-top:1px solid var(--border);margin:6px 0"></div><div style="font-size:10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Additional Costs</div>' + ac.map(function(c){return '<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:var(--muted)">'+c.desc+'</span><span style="font-weight:600">RM '+(Number(c.amount)||0).toFixed(2)+'</span></div>';}).join('') + '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--amber);margin-top:4px"><span>Total additional</span><span>RM '+addTotal.toFixed(2)+'</span></div>' : ''}
+        ${addTotal > 0 ? '<div style="border-top:1px solid var(--border);margin:6px 0"></div><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700"><span>Grand Total</span><span style="color:var(--teal)">RM '+total.toLocaleString('en-MY',{minimumFractionDigits:2})+'</span></div>' : ''}
       </div>`;
     }).join('');
   }

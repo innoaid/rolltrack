@@ -245,11 +245,15 @@ function getPendingSubmissions() {
   var headers = data[0];
   var puIdx = headers.indexOf('PUSealant');
   if (puIdx < 0) puIdx = 14; // fallback to column O
+  var acIdx = headers.indexOf('AdditionalCosts');
+  if (acIdx < 0) acIdx = 15; // fallback to column P
   var rows = sheetToObjects(sheet);
   var result = [];
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (String(r.Status || '').trim().toLowerCase() !== 'pending') continue;
+    var ac = [];
+    try { var raw = r.AdditionalCosts || data[i + 1][acIdx] || ''; if (raw) ac = JSON.parse(raw); } catch(e) {}
     result.push({
       id:          r.SubmissionID   || '',
       timestamp:   r.Timestamp      || '',
@@ -261,7 +265,8 @@ function getPendingSubmissions() {
       date:        r.ActivityDate   || '',
       notes:       r.Notes          || '',
       status:      r.Status         || '',
-      puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0
+      puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0,
+      additionalCosts: ac
     });
   }
   return result;
@@ -275,10 +280,14 @@ function getAllSubmissions() {
   var headers = data[0];
   var puIdx = headers.indexOf('PUSealant');
   if (puIdx < 0) puIdx = 14;
+  var acIdx = headers.indexOf('AdditionalCosts');
+  if (acIdx < 0) acIdx = 15;
   var rows = sheetToObjects(sheet);
   var result = [];
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
+    var ac = [];
+    try { var raw = r.AdditionalCosts || data[i + 1][acIdx] || ''; if (raw) ac = JSON.parse(raw); } catch(e) {}
     result.push({
       id:           r.SubmissionID   || '',
       timestamp:    r.Timestamp      || '',
@@ -290,7 +299,8 @@ function getAllSubmissions() {
       activityDate: r.ActivityDate   || '',
       notes:        r.Notes          || '',
       status:       r.Status         || '',
-      puSealant:    Number(r.PUSealant || data[i + 1][puIdx]) || 0
+      puSealant:    Number(r.PUSealant || data[i + 1][puIdx]) || 0,
+      additionalCosts: ac
     });
   }
   return { success: true, submissions: result };
@@ -306,7 +316,11 @@ function submitSubconForm(p) {
   // Columns: A=Timestamp B=SubconCode C=SubconName D=FormType E=QuotationNo
   //          F=Qty G=ActivityDate H=Notes I=PhotoURL J=Status
   //          K=ApprovedBy L=ApprovedAt M=RejectionReason N=SubmissionID
-  //          O=PUSealant
+  //          O=PUSealant P=AdditionalCosts
+  var additionalCosts = '[]';
+  if (p.additionalCosts) {
+    try { JSON.parse(p.additionalCosts); additionalCosts = p.additionalCosts; } catch(e) { additionalCosts = '[]'; }
+  }
   sheet.appendRow([
     new Date(),           // A  Timestamp
     p.subconCode  || '',  // B  SubconCode
@@ -322,7 +336,8 @@ function submitSubconForm(p) {
     '',                   // L  ApprovedAt
     '',                   // M  RejectionReason
     subId,                // N  SubmissionID
-    Number(p.puSealant) || 0  // O  PUSealant
+    Number(p.puSealant) || 0,  // O  PUSealant
+    additionalCosts       // P  AdditionalCosts (JSON)
   ]);
 
   return { success: true, submissionId: subId };
@@ -760,6 +775,9 @@ function getPayments(subconCode) {
       pay.projectName = q.projectName || '';
       pay.clientName  = q.clientName  || '';
     }
+    // Parse additional costs
+    try { pay.additionalCosts = pay['AdditionalCosts'] ? JSON.parse(pay['AdditionalCosts']) : []; } catch(e) { pay.additionalCosts = []; }
+    pay.additionalTotal = Number(pay['AdditionalTotal']) || 0;
   });
 
   return { success: true, payments: payments };
@@ -787,8 +805,13 @@ function calculatePayment(subconCode, quotationNo, rollsInstalled) {
 function calculatePaymentForQuotation(quotationNo, subconCode) {
   var sheet = getSheet('Submissions');
   if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var acIdx = headers.indexOf('AdditionalCosts');
+  if (acIdx < 0) acIdx = 15;
   var rows = sheetToObjects(sheet);
   var totalRolls = 0;
+  var allAdditionalCosts = [];
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
     if (String(r.QuotationNo)  !== String(quotationNo)) continue;
@@ -796,11 +819,23 @@ function calculatePaymentForQuotation(quotationNo, subconCode) {
     if (String(r.FormType).toLowerCase() !== 'install')   continue;
     if (String(r.Status).trim().toLowerCase() !== 'approved') continue;
     totalRolls += Number(r.Qty) || 0;
+    try {
+      var raw = r.AdditionalCosts || data[i + 1][acIdx] || '';
+      if (raw) { var ac = JSON.parse(raw); if (Array.isArray(ac)) allAdditionalCosts = allAdditionalCosts.concat(ac); }
+    } catch(e) {}
   }
   if (totalRolls === 0) return { success: false, error: 'No approved installs for ' + quotationNo };
   var calc = calculateTieredRate(subconCode, totalRolls);
   if (!calc.success) return calc;
   calc.totalRolls = totalRolls;
+  // Add additional costs: full amount goes to Payment 1
+  var totalAdditional = allAdditionalCosts.reduce(function(s, c) { return s + (Number(c.amount) || 0); }, 0);
+  if (totalAdditional > 0) {
+    calc.additionalCosts = allAdditionalCosts;
+    calc.additionalTotal = totalAdditional;
+    calc.payment1 = calc.payment1 + totalAdditional;
+    calc.total = calc.total + totalAdditional;
+  }
   return calc;
 }
 
@@ -825,6 +860,11 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     sheet.getRange(r + 1, idx['TotalAmount']    + 1).setValue(calc.total);
     sheet.getRange(r + 1, idx['Payment1Amount'] + 1).setValue(calc.payment1);
     sheet.getRange(r + 1, idx['Payment2Amount'] + 1).setValue(calc.payment2);
+    // Update additional costs columns
+    var acColIdx = idx['AdditionalCosts'];
+    var atColIdx = idx['AdditionalTotal'];
+    if (acColIdx !== undefined) sheet.getRange(r + 1, acColIdx + 1).setValue(calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]');
+    if (atColIdx !== undefined) sheet.getRange(r + 1, atColIdx + 1).setValue(calc.additionalTotal || 0);
     return { success: true, updated: true, paymentID: data[r][idx['PaymentID']] };
   }
 
@@ -858,7 +898,9 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     'unpaid',          // Payment2Status
     '',                // Payment2Date
     '',                // Payment2Reference
-    nowStr()           // CreatedAt
+    nowStr(),          // CreatedAt
+    calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]',  // Q  AdditionalCosts
+    calc.additionalTotal || 0   // R  AdditionalTotal
   ]);
   return { success: true, created: true, paymentID: paymentID };
 }
@@ -931,7 +973,9 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
     'unpaid',         // Payment2Status
     '',               // Payment2Date
     '',               // Payment2Reference
-    nowStr()          // CreatedAt
+    nowStr(),         // CreatedAt
+    '[]',             // Q  AdditionalCosts
+    0                 // R  AdditionalTotal
   ]);
 
   return {

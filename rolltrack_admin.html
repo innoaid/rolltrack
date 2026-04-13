@@ -761,6 +761,20 @@ function renderApprovals() {
           </div>
           ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Notes: ${s.notes}</div>` : ''}
         </div>
+        ${(s.additionalCosts && s.additionalCosts.length > 0) ? `<div style="padding:10px 13px;border-bottom:1px solid var(--border)">
+          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Additional Costs</div>
+          ${s.additionalCosts.map(c => `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:var(--muted)">${c.desc}</span><span style="font-weight:700">RM ${Number(c.amount).toFixed(2)}</span></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--orange);margin-top:6px;padding-top:4px;border-top:1px solid var(--border)"><span>Total additional</span><span>RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</span></div>
+        </div>
+        <div style="padding:10px 13px;border-bottom:1px solid var(--border)">
+          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Payment Breakdown</div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:3px;font-size:12px">
+            <div style="color:var(--muted)">Rolls total (${qty} × RM ${rate})</div><div style="font-weight:700;text-align:right">RM ${fmtN(labourCost)}</div>
+            <div style="color:var(--muted)">Additional costs</div><div style="font-weight:700;text-align:right;color:var(--orange)">RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</div>
+            <div style="color:var(--blue)">P1 — 50% rolls + additional</div><div style="font-weight:700;text-align:right;color:var(--blue)">RM ${fmtN(labourCost * 0.5 + s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0))}</div>
+            <div style="color:var(--muted)">P2 — 50% rolls only</div><div style="font-weight:700;text-align:right">RM ${fmtN(labourCost * 0.5)}</div>
+          </div>
+        </div>` : ''}
         <div style="padding:0 12px 8px;margin-top:6px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>
         <div class="appr-actions">
           <button class="appr-approve" onclick="approve('${s.id}','${s.formType}')">✅ Approve</button>
@@ -1426,6 +1440,9 @@ function renderPayments() {
     const rolls = Number(p['RollsInstalled'] || 0);
     const rate  = Number(p['RateApplied']    || 0);
     const total = Number(p['TotalAmount']    || 0);
+    const ac    = p.additionalCosts || [];
+    const addTot = p.additionalTotal || 0;
+    const hasAC  = ac.length > 0 && addTot > 0;
     const p1amt = Number(p['Payment1Amount'] || 0);
     const p1st  = p['Payment1Status']    || 'unpaid';
     const p1dt  = p['Payment1Date']      || '';
@@ -1477,16 +1494,21 @@ function renderPayments() {
       <div class="pay-meta">
         ${rolls} rolls &nbsp;·&nbsp; RM ${fmtN(rate)}/roll &nbsp;·&nbsp; Total: <strong>RM ${fmtN(total)}</strong>
       </div>
+      ${hasAC ? `<div style="padding:6px 12px;font-size:11px;border-bottom:1px solid var(--border)">
+        <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Additional Costs</div>
+        ${ac.map(c => `<div style="display:flex;justify-content:space-between;margin-bottom:1px"><span style="color:var(--muted)">${c.desc}</span><span style="font-weight:600">RM ${Number(c.amount).toFixed(2)}</span></div>`).join('')}
+        <div style="display:flex;justify-content:space-between;font-weight:700;color:var(--orange);margin-top:3px;padding-top:3px;border-top:1px solid var(--border)"><span>Total additional</span><span>RM ${fmtN(addTot)}</span></div>
+      </div>` : ''}
       <div class="pay-row">
         <div class="pay-row-info">
-          <span class="pay-row-lbl">Payment 1 (50%)</span>
+          <span class="pay-row-lbl">${hasAC ? 'Payment 1 (50% + additional)' : 'Payment 1 (50%)'}</span>
           <span class="pay-row-amt">RM ${fmtN(p1amt)}</span>${p1Badge}${p1Info}
         </div>
         ${p1Btn}
       </div>
       <div class="pay-row">
         <div class="pay-row-info">
-          <span class="pay-row-lbl">Payment 2 (50%)</span>
+          <span class="pay-row-lbl">${hasAC ? 'Payment 2 (50% rolls)' : 'Payment 2 (50%)'}</span>
           <span class="pay-row-amt">RM ${fmtN(p2amt)}</span>${p2Badge}${p2Info}
         </div>
         ${p2Btn}
