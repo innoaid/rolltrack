@@ -53,6 +53,9 @@ function doGet(e) {
       case 'approveSubmission':
         result = approveSubmission(p.submissionId);
         break;
+      case 'approveSubmissionWithEdit':
+        result = approveSubmissionWithEdit(p.submissionId, p.additionalCosts, p.editReason);
+        break;
       case 'rejectSubmission':
         result = rejectSubmission(p.submissionId, p.reason);
         break;
@@ -254,6 +257,8 @@ function getPendingSubmissions() {
     if (String(r.Status || '').trim().toLowerCase() !== 'pending') continue;
     var ac = [];
     try { var raw = r.AdditionalCosts || data[i + 1][acIdx] || ''; if (raw) ac = JSON.parse(raw); } catch(e) {}
+    var origAC = [];
+    try { if (r.OriginalAdditionalCosts) origAC = JSON.parse(r.OriginalAdditionalCosts) || []; } catch(e) {}
     result.push({
       id:          r.SubmissionID   || '',
       timestamp:   r.Timestamp      || '',
@@ -266,6 +271,10 @@ function getPendingSubmissions() {
       notes:       r.Notes          || '',
       status:      r.Status         || '',
       rejectionReason: r.RejectionReason || '',
+      originalAdditionalCosts: origAC,
+      editedBy:    r.EditedBy       || '',
+      editedAt:    r.EditedAt       || '',
+      editReason:  r.EditReason     || '',
       puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0,
       additionalCosts: ac
     });
@@ -289,6 +298,8 @@ function getAllSubmissions() {
     var r = rows[i];
     var ac = [];
     try { var raw = r.AdditionalCosts || data[i + 1][acIdx] || ''; if (raw) ac = JSON.parse(raw); } catch(e) {}
+    var origAC2 = [];
+    try { if (r.OriginalAdditionalCosts) origAC2 = JSON.parse(r.OriginalAdditionalCosts) || []; } catch(e) {}
     result.push({
       id:           r.SubmissionID   || '',
       timestamp:    r.Timestamp      || '',
@@ -301,6 +312,10 @@ function getAllSubmissions() {
       notes:        r.Notes          || '',
       status:       r.Status         || '',
       rejectionReason: r.RejectionReason || '',
+      originalAdditionalCosts: origAC2,
+      editedBy:     r.EditedBy       || '',
+      editedAt:     r.EditedAt       || '',
+      editReason:   r.EditReason     || '',
       puSealant:    Number(r.PUSealant || data[i + 1][puIdx]) || 0,
       additionalCosts: ac
     });
@@ -422,6 +437,62 @@ function approveSubmission(submissionId) {
              quotationNo: quotNo, qty: qty, notes: notes });
 
     return { success: true };
+  }
+  return { success: false, error: 'Submission not found: ' + submissionId };
+}
+
+// approveSubmissionWithEdit — admin edits the submission's additional costs
+// during the approval click. The submission's original AdditionalCosts are
+// snapshotted into OriginalAdditionalCosts; the new value is written back to
+// AdditionalCosts; EditedBy / EditedAt / EditReason record the action; then
+// the standard approveSubmission pipeline runs so the payment record + balances
+// reflect the edited values.
+function approveSubmissionWithEdit(submissionId, additionalCostsJson, editReason) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var idx     = {};
+  headers.forEach(function(h, i) { idx[h] = i; });
+
+  // Auto-add edit-tracking columns if missing.
+  ['OriginalAdditionalCosts', 'EditedBy', 'EditedAt', 'EditReason'].forEach(function(name) {
+    if (idx[name] === undefined) {
+      var nextCol = headers.length + 1;
+      sheet.getRange(1, nextCol).setValue(name);
+      idx[name] = headers.length;
+      headers.push(name);
+    }
+  });
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][idx['SubmissionID']]) !== String(submissionId)) continue;
+
+    // Validate the new payload as JSON; reject silently if malformed.
+    var newAC = '[]';
+    if (additionalCostsJson) {
+      try { JSON.parse(additionalCostsJson); newAC = additionalCostsJson; }
+      catch(e) { return { success: false, error: 'Invalid additionalCosts JSON' }; }
+    }
+
+    // Snapshot original (only the first time; don't clobber on re-edit).
+    var existingOriginal = String(data[r][idx['OriginalAdditionalCosts']] || '').trim();
+    if (!existingOriginal) {
+      var originalAC = data[r][idx['AdditionalCosts']] || '[]';
+      sheet.getRange(r + 1, idx['OriginalAdditionalCosts'] + 1).setValue(originalAC);
+    }
+
+    // Write the edited value into AdditionalCosts so the calc pipeline picks it up.
+    sheet.getRange(r + 1, idx['AdditionalCosts'] + 1).setValue(newAC);
+    sheet.getRange(r + 1, idx['EditedBy']        + 1).setValue('admin');
+    sheet.getRange(r + 1, idx['EditedAt']        + 1).setValue(new Date());
+    if (editReason) {
+      sheet.getRange(r + 1, idx['EditReason'] + 1).setValue(editReason);
+    }
+    SpreadsheetApp.flush();
+
+    // Hand off to the normal approval pipeline; payment calc reads AdditionalCosts fresh.
+    return approveSubmission(submissionId);
   }
   return { success: false, error: 'Submission not found: ' + submissionId };
 }

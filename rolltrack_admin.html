@@ -768,18 +768,19 @@ function renderApprovals() {
           </div>
           ${s.notes ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">Notes: ${s.notes}</div>` : ''}
         </div>
-        ${(s.additionalCosts && s.additionalCosts.length > 0) ? `<div style="padding:10px 13px;border-bottom:1px solid var(--border)">
-          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Additional Costs</div>
-          ${s.additionalCosts.map(c => `<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px"><span style="color:var(--muted)">${c.desc}</span><span style="font-weight:700">RM ${Number(c.amount).toFixed(2)}</span></div>`).join('')}
-          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--orange);margin-top:6px;padding-top:4px;border-top:1px solid var(--border)"><span>Total additional</span><span>RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</span></div>
+        ${(s.additionalCosts && s.additionalCosts.length > 0) ? `<div style="padding:10px 13px;border-bottom:1px solid var(--border)" data-ac-section="${s.id}">
+          <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px;display:flex;justify-content:space-between"><span>Additional Costs</span><span style="color:var(--orange)">editable</span></div>
+          ${s.additionalCosts.map((c, i) => `<div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;margin-bottom:3px;gap:6px"><span style="color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.desc}</span><span style="font-weight:700">RM</span><input type="number" step="0.01" min="0" id="ac_amt_${s.id}_${i}" data-sid="${s.id}" data-i="${i}" data-orig="${Number(c.amount).toFixed(2)}" value="${Number(c.amount).toFixed(2)}" oninput="recomputeAC('${s.id}')" style="width:90px;font-weight:700;text-align:right;font-size:12px;padding:4px 6px"></div>`).join('')}
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;color:var(--orange);margin-top:6px;padding-top:4px;border-top:1px solid var(--border)"><span>Total additional</span><span id="ac_total_${s.id}">RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</span></div>
+          <input type="text" id="ac_reason_${s.id}" placeholder="Reason for adjustment (optional)" style="margin-top:6px;font-size:12px;padding:6px 8px;width:100%">
         </div>
         <div style="padding:10px 13px;border-bottom:1px solid var(--border)">
           <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Payment Breakdown</div>
           <div style="display:grid;grid-template-columns:1fr auto;gap:3px;font-size:12px">
             <div style="color:var(--muted)">Rolls total (${qty} × RM ${rate})</div><div style="font-weight:700;text-align:right">RM ${fmtN(labourCost)}</div>
-            <div style="color:var(--muted)">Additional costs</div><div style="font-weight:700;text-align:right;color:var(--orange)">RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</div>
-            <div style="color:var(--blue)">P1 — 50% rolls + additional</div><div style="font-weight:700;text-align:right;color:var(--blue)">RM ${fmtN(labourCost * 0.5 + s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0))}</div>
-            <div style="color:var(--muted)">P2 — 50% rolls only</div><div style="font-weight:700;text-align:right">RM ${fmtN(labourCost * 0.5)}</div>
+            <div style="color:var(--muted)">Additional costs</div><div style="font-weight:700;text-align:right;color:var(--orange)" id="pb_add_${s.id}">RM ${s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0).toFixed(2)}</div>
+            <div style="color:var(--blue)">P1 — 50% rolls + 50% add'l</div><div style="font-weight:700;text-align:right;color:var(--blue)" id="pb_p1_${s.id}">RM ${fmtN(labourCost * 0.5 + s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0) / 2)}</div>
+            <div style="color:var(--muted)">P2 — 50% rolls + 50% add'l</div><div style="font-weight:700;text-align:right" id="pb_p2_${s.id}">RM ${fmtN(labourCost * 0.5 + s.additionalCosts.reduce((sum,c) => sum + Number(c.amount), 0) / 2)}</div>
           </div>
         </div>` : ''}
         <div style="padding:0 12px 8px;margin-top:6px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>
@@ -942,17 +943,62 @@ function rLI(m) {
 // ══════════════════════════════════════
 // APPROVE / REJECT
 // ══════════════════════════════════════
+// Read edited additional-cost amounts from the inputs on a pending card.
+// Returns null if no AC inputs exist (non-install or install with no AC).
+// Returns { edited:bool, items:[{desc,amount}], reason } otherwise.
+function collectEditedAC(id) {
+  const sub = (D.pendingSubmissions || []).find(s => s.id === id);
+  if (!sub || !sub.additionalCosts || !sub.additionalCosts.length) return null;
+  const items = sub.additionalCosts.map((c, i) => {
+    const inp = ge('ac_amt_' + id + '_' + i);
+    const amt = inp ? Number(inp.value) : Number(c.amount);
+    return { desc: c.desc, amount: isFinite(amt) ? amt : 0 };
+  });
+  const edited = items.some((it, i) =>
+    Math.abs(it.amount - Number(sub.additionalCosts[i].amount)) > 0.005
+  );
+  const reasonEl = ge('ac_reason_' + id);
+  const reason = reasonEl ? reasonEl.value.trim() : '';
+  return { edited, items, reason };
+}
+
+// Live-update totals + payment breakdown as admin edits AC amounts.
+function recomputeAC(id) {
+  const collected = collectEditedAC(id);
+  if (!collected) return;
+  const total = collected.items.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const sub = (D.pendingSubmissions || []).find(s => s.id === id);
+  const qty = sub ? Number(sub.qty || 0) : 0;
+  const rate = qty <= 4 ? 190 : qty <= 9 ? 170 : 150;
+  const labourCost = qty * rate;
+  const totalEl = ge('ac_total_' + id); if (totalEl) totalEl.textContent = 'RM ' + total.toFixed(2);
+  const addEl   = ge('pb_add_'   + id); if (addEl)   addEl.textContent   = 'RM ' + total.toFixed(2);
+  const p1El    = ge('pb_p1_'    + id); if (p1El)    p1El.textContent    = 'RM ' + fmtN(labourCost * 0.5 + total / 2);
+  const p2El    = ge('pb_p2_'    + id); if (p2El)    p2El.textContent    = 'RM ' + fmtN(labourCost * 0.5 + total / 2);
+}
+
 async function approve(id, formType) {
   const qcInput = ge('qcn_' + id);
   const qcNotes = qcInput ? qcInput.value.trim() : '';
-  const params  = { action:'approveSubmission', submissionId:id };
+  const collected = collectEditedAC(id);
+  let params;
+  if (collected && collected.edited) {
+    params = {
+      action:          'approveSubmissionWithEdit',
+      submissionId:    id,
+      additionalCosts: JSON.stringify(collected.items)
+    };
+    if (collected.reason) params.editReason = collected.reason;
+  } else {
+    params = { action: 'approveSubmission', submissionId: id };
+  }
   if (qcNotes) params.qcNotes = qcNotes;
   loading(true, 'Approving...');
   try {
     const res = await jsonp(params);
     loading(false);
     if (res.success) {
-      toast('✅ Approved — stock updated');
+      toast(collected && collected.edited ? '✅ Approved with adjustment' : '✅ Approved — stock updated');
       D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== id);
       const card = ge('appr_' + id);
       if (card) card.remove();

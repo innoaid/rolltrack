@@ -963,6 +963,16 @@ function renderHistory() {
           + 'Please resubmit / Sila hantar semula'
           + '</div>'
         : '';
+      var adjustedText = '';
+      if (s.editedBy && (s.originalAdditionalCosts || []).length) {
+        var origTot = (s.originalAdditionalCosts || []).reduce(function(a,c){ return a + Number(c.amount||0); }, 0);
+        var newTot  = (s.additionalCosts        || []).reduce(function(a,c){ return a + Number(c.amount||0); }, 0);
+        adjustedText = '<div style="background:rgba(255,160,60,0.1);border:1px solid rgba(255,160,60,0.25);border-radius:6px;padding:6px 9px;margin-top:6px;font-size:11px;color:#ffa040;">'
+          + '<strong>✏️ Adjusted by admin</strong>'
+          + '<div style="margin-top:2px;color:#d8d8d8">Additional costs: RM ' + origTot.toFixed(2) + ' → <strong>RM ' + newTot.toFixed(2) + '</strong></div>'
+          + (s.editReason ? '<div style="margin-top:2px;font-style:italic;color:#cccccc">Reason: ' + s.editReason + '</div>' : '')
+          + '</div>';
+      }
       return `<div class="hist-card"${rejectedStyle}>
         <div class="hist-top">
           <div class="hist-icon ${ft}">${ICONS[ft]||'📋'}</div>
@@ -974,6 +984,7 @@ function renderHistory() {
           ${s.quotationNo ? '<br>Quotation: <strong>'+s.quotationNo+'</strong>' : ''}
           ${s.notes ? '<br>Notes: '+s.notes : ''}
         </div>
+        ${adjustedText}
         ${rejectedText}
       </div>`;
     }).join('');
