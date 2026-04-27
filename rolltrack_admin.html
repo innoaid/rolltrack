@@ -1531,6 +1531,9 @@ function renderPayments() {
     const ac    = p.additionalCosts || [];
     const addTot = p.additionalTotal || 0;
     const hasAC  = ac.length > 0 && addTot > 0;
+    const labourCost = rolls * rate;
+    const totalSqft  = qt ? Number(qt.totalSqft || 0) : 0;
+    const labourPerSqft = totalSqft > 0 ? (labourCost / totalSqft).toFixed(2) : '';
     const splitMode = String(p['SplitMode']||'').trim() === 'split-50-50' ? 'split-50-50' : 'p1-only';
     const p1Lbl = !hasAC ? 'Payment 1 (50%)'
                 : (splitMode === 'split-50-50' ? "Payment 1 (50% rolls + 50% add'l)" : 'Payment 1 (50% + additional)');
@@ -1590,6 +1593,7 @@ function renderPayments() {
       </div>
       <div class="pay-meta">
         ${rolls} rolls &nbsp;·&nbsp; RM ${fmtN(rate)}/roll &nbsp;·&nbsp; Total: <strong>RM ${fmtN(total)}</strong>
+        ${labourPerSqft ? `<br><span style="color:var(--blue);font-weight:700">RM ${labourPerSqft}/sqft labour</span>${totalSqft ? ` &nbsp;·&nbsp; <span style="color:var(--muted)">${fmtN(totalSqft)} sqft total</span>` : ''}` : ''}
       </div>
       ${hasAC ? `<div style="padding:6px 12px;font-size:11px;border-bottom:1px solid var(--border)">
         <div style="font-size:9px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Additional Costs</div>
