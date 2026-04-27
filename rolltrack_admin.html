@@ -1790,8 +1790,8 @@ function generateReport() {
   const rangeFrom = filterFrom ? fmtDate(filterFrom) : '—';
   const rangeTo   = filterTo   ? fmtDate(filterTo)   : '—';
 
-  // Render a single payment record as a card
-  function renderCard(p) {
+  // Render a single payment record as a <tr>
+  function renderRow(p) {
     const qno   = p['QuotationNo'] || '';
     const qt    = qno ? qtMap[qno] : null;
     const customerName = qt ? (qt.clientName  || '') : '';
@@ -1802,44 +1802,72 @@ function generateReport() {
     const ac    = p.additionalCosts || [];
     const addTot = Number(p.additionalTotal || 0);
     const hasAC  = ac.length > 0 && addTot > 0;
-    const grand  = total + addTot;
 
     const p1amt = Number(p['Payment1Amount'] || 0);
     const p1st  = p['Payment1Status'] || 'unpaid';
     const p2amt = Number(p['Payment2Amount'] || 0);
     const p2st  = p['Payment2Status'] || 'unpaid';
-    const p1Due = getP1DueDate(p);
-    const p2Due = getP2DueDate(p);
-    const p1DueStr = p1Due ? fmtDate(p1Due) : '—';
-    const p2DueStr = p2Due ? fmtDate(p2Due) : '—';
     const p1Tag = p1st === 'paid' ? 'PAID' : 'UNPAID';
     const p2Tag = p2st === 'paid' ? 'PAID' : (p1st === 'paid' ? 'UNPAID' : 'NOT DUE');
     const p1Color = p1st === 'paid' ? 'color:green' : 'color:#c01818';
     const p2Color = p2st === 'paid' ? 'color:green' : (p1st === 'paid' ? 'color:#c01818' : 'color:#888');
 
     const acLine = hasAC
-      ? `<div class="rec-ac">Additional costs: ${ac.map(c => (c.desc||'') + ' RM' + Number(c.amount||0).toFixed(2)).join(', ')}</div>`
-      : '';
-    const grandLine = hasAC
-      ? `<div class="rec-grand">Grand total: RM ${fmtN(grand)}</div>`
+      ? `<div class="ac-line">+ ${ac.map(c => (c.desc||'') + ' RM' + Number(c.amount||0).toFixed(2)).join(', ')}</div>`
       : '';
 
-    return `<div class="rec">
-      <div class="rec-qno">${qno}</div>
-      <div class="rec-cust">Customer: ${customerName || '—'}</div>
-      <div class="rec-addr">Address: ${address || '—'}</div>
-      <div class="rec-meta">${rolls} rolls · RM ${fmtN(rate)}/roll · Total: <strong>RM ${fmtN(total)}</strong></div>
-      <div class="rec-p" style="${p1Color}">P1: RM ${fmtN(p1amt)} [${p1Tag}] Due: ${p1DueStr}</div>
-      <div class="rec-p" style="${p2Color}">P2: RM ${fmtN(p2amt)} [${p2Tag}] Due: ${p2DueStr}</div>
-      ${acLine}
-      ${grandLine}
-    </div>`;
+    return `<tr>
+      <td class="c-qno">${qno}</td>
+      <td>${customerName || '—'}</td>
+      <td class="c-addr">${address || '—'}</td>
+      <td class="c-num">${rolls}</td>
+      <td class="c-num">RM ${fmtN(rate)}</td>
+      <td class="c-num c-amt">RM ${fmtN(total)}${acLine}</td>
+      <td class="c-num" style="${p1Color}">RM ${fmtN(p1amt)}<div class="tag">[${p1Tag}]</div></td>
+      <td class="c-num" style="${p2Color}">RM ${fmtN(p2amt)}<div class="tag">[${p2Tag}]</div></td>
+    </tr>`;
   }
 
-  // Body content: flat list when a subcon is selected, grouped sections when "All"
+  // Build a complete table (header + body rows + totals row) for a record set
+  function renderTable(list) {
+    let sumRolls = 0, sumAmt = 0, sumP1 = 0, sumP2 = 0;
+    list.forEach(p => {
+      sumRolls += Number(p['RollsInstalled'] || 0);
+      sumAmt   += Number(p['TotalAmount']    || 0);
+      sumP1    += Number(p['Payment1Amount'] || 0);
+      sumP2    += Number(p['Payment2Amount'] || 0);
+    });
+    return `<table>
+      <thead>
+        <tr>
+          <th>Quotation</th>
+          <th>Customer</th>
+          <th>Address</th>
+          <th class="c-num">Rolls</th>
+          <th class="c-num">Rate</th>
+          <th class="c-num">Amount</th>
+          <th class="c-num">P1</th>
+          <th class="c-num">P2</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${list.map(renderRow).join('')}
+        <tr class="total-row">
+          <td colspan="3" style="text-align:right">TOTAL</td>
+          <td class="c-num">${sumRolls}</td>
+          <td></td>
+          <td class="c-num">RM ${fmtN(sumAmt)}</td>
+          <td class="c-num">RM ${fmtN(sumP1)}</td>
+          <td class="c-num">RM ${fmtN(sumP2)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+  }
+
+  // Body content: single table when a subcon is selected, one table per subcon when "All"
   let body;
   if (sc) {
-    body = data.map(renderCard).join('');
+    body = renderTable(data);
   } else {
     const groups = {};
     data.forEach(p => {
@@ -1857,7 +1885,7 @@ function generateReport() {
       const grpName = NAME_BY_CODE[code] || code;
       const grpOut  = owed - paid;
       return `<h3 class="grp">${grpName} (${code}) — ${list.length} record${list.length===1?'':'s'} · Outstanding RM ${fmtN(grpOut)}</h3>`
-           + list.map(renderCard).join('');
+           + renderTable(list);
     }).join('');
   }
 
@@ -1867,21 +1895,25 @@ function generateReport() {
 <meta charset="UTF-8">
 <title>Payment Report — ${subconName} | Innovation AID</title>
 <style>
-  body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:960px;margin:0 auto}
+  body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:28px;max-width:1100px;margin:0 auto}
   h1{font-size:22px;margin:0 0 4px}
   h2{font-size:16px;font-weight:600;color:#333;margin:0 0 18px}
-  h3.grp{font-size:14px;font-weight:700;color:#111;border-bottom:2px solid #111;padding-bottom:4px;margin:22px 0 10px}
-  .meta{font-size:12px;color:#444;margin-bottom:22px;line-height:1.7;background:#f7f7f7;border:1px solid #e3e3e3;border-radius:8px;padding:12px 14px}
+  h3.grp{font-size:14px;font-weight:700;color:#111;border-bottom:2px solid #111;padding-bottom:4px;margin:24px 0 8px}
+  .meta{font-size:12px;color:#444;margin-bottom:18px;line-height:1.7;background:#f7f7f7;border:1px solid #e3e3e3;border-radius:8px;padding:12px 14px}
   .meta strong{color:#111}
-  .rec{border:1px solid #ddd;border-radius:8px;padding:11px 14px;margin-bottom:10px;background:#fff;page-break-inside:avoid}
-  .rec-qno{font-weight:800;font-size:14px;margin-bottom:2px}
-  .rec-cust,.rec-addr{font-size:12px;color:#333;margin-bottom:1px}
-  .rec-meta{font-size:12px;margin:6px 0}
-  .rec-p{font-size:12px;font-weight:700;margin-top:2px}
-  .rec-ac{font-size:11px;color:#555;margin-top:4px;font-style:italic}
-  .rec-grand{font-size:13px;font-weight:800;margin-top:4px;padding-top:4px;border-top:1px dashed #bbb}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11.5px}
+  th{background:#111;color:#fff;padding:8px 8px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+  td{padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top}
+  tr:nth-child(even) td{background:#fafafa}
+  .c-num{text-align:right}
+  .c-qno{font-weight:700;white-space:nowrap}
+  .c-addr{font-size:11px;color:#444}
+  .c-amt{font-weight:700}
+  .ac-line{font-size:10px;color:#888;font-style:italic;margin-top:2px;font-weight:400}
+  .tag{font-size:9px;font-weight:700;letter-spacing:.4px;margin-top:1px}
+  .total-row td{font-weight:800;border-top:2px solid #111;background:#f0f0f0}
   .print-btn{margin-top:10px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
-  @media print{.print-btn{display:none}body{padding:16px} .rec{break-inside:avoid}}
+  @media print{.print-btn{display:none}body{padding:14px;max-width:none} table{page-break-inside:auto} tr{page-break-inside:avoid}}
 </style>
 </head>
 <body>
