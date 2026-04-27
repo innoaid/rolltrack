@@ -1709,10 +1709,11 @@ async function confirmBatchPay() {
   const ref  = ge('bp_ref').value.trim();
   if (!date) { toast('Select a date'); return; }
   if (!batchPayItems.length) return;
+  const items = batchPayItems.slice();   // snapshot before closeBatchPay clears the list
   closeBatchPay();
-  loading(true, 'Marking ' + batchPayItems.length + ' payments...');
+  loading(true, 'Marking ' + items.length + ' payments...');
   let ok = 0, fail = 0;
-  for (const item of batchPayItems) {
+  for (const item of items) {
     try {
       const res = await jsonp({
         action: 'markPayment', paymentID: item.pid,
@@ -1740,13 +1741,15 @@ async function submitMarkPaid() {
   const date = ge('pay_date').value;
   const ref  = ge('pay_ref').value.trim();
   if (!date) { toast('Select a date'); return; }
+  const savedPaymentID     = payingRecord.paymentID;     // snapshot before closePayModal nulls payingRecord
+  const savedPaymentNumber = payingRecord.paymentNumber;
   closePayModal();
   loading(true, 'Updating...');
   try {
     const res = await jsonp({
       action:        'markPayment',
-      paymentID:     payingRecord.paymentID,
-      paymentNumber: payingRecord.paymentNumber,
+      paymentID:     savedPaymentID,
+      paymentNumber: savedPaymentNumber,
       status:        'paid',
       date,
       reference:     ref
