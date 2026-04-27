@@ -77,6 +77,9 @@ function doGet(e) {
       case 'markPayment':
         result = markPayment(p);
         break;
+      case 'recalcPayment':
+        result = recalcPayment(p.quotationNo, p.subconCode);
+        break;
       case 'getAllSubmissions':
         result = getAllSubmissions();
         break;
@@ -923,6 +926,19 @@ function calculatePaymentForQuotation(quotationNo, subconCode) {
   return calc;
 }
 
+// recalcPayment — admin action to re-run calc + upsert for a single quotation.
+// Use it after enabling split-50-50 to convert a legacy untagged record to the
+// new mode (the upsert's "upgrade unpaid legacy" branch handles the actual flip
+// and writes the SplitMode tag). Honours the Payment*Status guards so paid
+// amounts are never overwritten.
+function recalcPayment(quotationNo, subconCode) {
+  if (!quotationNo) return { success: false, error: 'quotationNo required' };
+  if (!subconCode)  return { success: false, error: 'subconCode required' };
+  var calc = calculatePaymentForQuotation(String(quotationNo), String(subconCode));
+  if (!calc.success) return calc;
+  return upsertPaymentRecord(String(quotationNo), String(subconCode), calc);
+}
+
 // applySplit — picks Payment1Amount / Payment2Amount / TotalAmount based on splitMode.
 //   'split-50-50' → additional is split evenly across P1 and P2  (new default)
 //   'p1-only'     → additional all goes to P1                    (legacy)
@@ -963,22 +979,40 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
   // Check if record exists — update in place
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][qIdx]) !== String(quotationNo)) continue;
-    // Sticky split mode: legacy rows (empty S) keep p1-only forever.
+
+    // Resolve the split mode for this row.
+    //   explicit 'split-50-50' / 'p1-only' → use as-is
+    //   empty (untagged legacy)            → upgrade to split-50-50 unless P1
+    //                                        has already been paid (then freeze
+    //                                        as p1-only so paid amount is safe)
     var existingMode = String((data[r][smIdx] !== undefined ? data[r][smIdx] : '') || '').trim();
-    var splitMode = existingMode === 'split-50-50' ? 'split-50-50' : 'p1-only';
+    var splitMode;
+    var writeBackMode = false;
+    if (existingMode === 'split-50-50' || existingMode === 'p1-only') {
+      splitMode = existingMode;
+    } else {
+      var p1Paid = String(data[r][idx['Payment1Status']] || '').trim().toLowerCase() === 'paid';
+      splitMode = p1Paid ? 'p1-only' : 'split-50-50';
+      writeBackMode = true; // tag the row so future upserts are unambiguous
+    }
     applySplit(calc, splitMode);
 
     sheet.getRange(r + 1, idx['RollsInstalled'] + 1).setValue(calc.totalRolls);
     sheet.getRange(r + 1, idx['RateApplied']    + 1).setValue(calc.rate);
     sheet.getRange(r + 1, idx['TotalAmount']    + 1).setValue(calc.total);
-    sheet.getRange(r + 1, idx['Payment1Amount'] + 1).setValue(calc.payment1);
-    sheet.getRange(r + 1, idx['Payment2Amount'] + 1).setValue(calc.payment2);
+    // Don't clobber Payment1Amount if it has already been paid out — a paid
+    // amount is a real disbursement and editing it would silently change the
+    // payment record after the fact.
+    var p1AlreadyPaid = String(data[r][idx['Payment1Status']] || '').trim().toLowerCase() === 'paid';
+    var p2AlreadyPaid = String(data[r][idx['Payment2Status']] || '').trim().toLowerCase() === 'paid';
+    if (!p1AlreadyPaid) sheet.getRange(r + 1, idx['Payment1Amount'] + 1).setValue(calc.payment1);
+    if (!p2AlreadyPaid) sheet.getRange(r + 1, idx['Payment2Amount'] + 1).setValue(calc.payment2);
     // Update additional costs columns
     var acColIdx = idx['AdditionalCosts'];
     var atColIdx = idx['AdditionalTotal'];
     if (acColIdx !== undefined) sheet.getRange(r + 1, acColIdx + 1).setValue(calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]');
     if (atColIdx !== undefined) sheet.getRange(r + 1, atColIdx + 1).setValue(calc.additionalTotal || 0);
-    // Do not overwrite SplitMode on existing rows.
+    if (writeBackMode) sheet.getRange(r + 1, smIdx + 1).setValue(splitMode);
     return { success: true, updated: true, paymentID: data[r][idx['PaymentID']] };
   }
 
