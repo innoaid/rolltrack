@@ -1692,6 +1692,9 @@ function buildWeeklyItems() {
     [1, 2].forEach(n => {
       const st  = p[`Payment${n}Status`] || 'unpaid';
       if (st === 'paid') return;
+      // P2 isn't actually payable until P1 is paid; including it here
+      // would double-count alongside the still-unpaid P1.
+      if (n === 2 && (p['Payment1Status'] || 'unpaid') !== 'paid') return;
       const amt = Number(p[`Payment${n}Amount`] || 0);
       if (!amt) return;
 
