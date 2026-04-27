@@ -719,6 +719,9 @@ function renderApprovals() {
   el.innerHTML = pend.map(s => {
     const qt   = s.quotationNo ? qtMap[s.quotationNo] : null;
     const isInstall = s.formType === 'install';
+    const rejBanner = (String(s.status||'').toLowerCase() === 'rejected' && s.rejectionReason)
+      ? `<div style="background:rgba(255,60,60,0.1);border-bottom:1px solid rgba(255,60,60,0.25);padding:8px 13px;color:#ff6060;font-size:12px"><strong>❌ REJECTED</strong> — <em>${s.rejectionReason}</em></div>`
+      : '';
 
     if (isInstall) {
       const qty = s.qty || 0;
@@ -732,6 +735,7 @@ function renderApprovals() {
 
       return `
       <div class="appr-card" id="appr_${s.id}">
+        ${rejBanner}
         <div style="padding:12px 13px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:10px;font-weight:800;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Installation Report · <span style="background:var(--orange-l);padding:2px 6px;border-radius:10px">PENDING</span></div>
@@ -789,6 +793,7 @@ function renderApprovals() {
       ? `<strong>${s.quotationNo}</strong>${proj ? ' — ' + proj : ''}<br>` : '';
     return `
     <div class="appr-card" id="appr_${s.id}">
+      ${rejBanner}
       <div class="appr-hdr">
         <div class="appr-dot ${s.formType}">${icons[s.formType]||'📋'}</div>
         <div class="appr-info">
@@ -1005,6 +1010,7 @@ async function confirmReject() {
     if (res.success) {
       toast('❌ Submission rejected');
       D.pendingSubmissions = D.pendingSubmissions.filter(s => s.id !== savedId);
+      renderApprovals();
       // Send WhatsApp to boss for install rejections
       if (savedFormType === 'install') {
         const qt  = savedQuotNo || res.quotationNo || '';

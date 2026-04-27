@@ -265,6 +265,7 @@ function getPendingSubmissions() {
       date:        r.ActivityDate   || '',
       notes:       r.Notes          || '',
       status:      r.Status         || '',
+      rejectionReason: r.RejectionReason || '',
       puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0,
       additionalCosts: ac
     });
@@ -299,6 +300,7 @@ function getAllSubmissions() {
       activityDate: r.ActivityDate   || '',
       notes:        r.Notes          || '',
       status:       r.Status         || '',
+      rejectionReason: r.RejectionReason || '',
       puSealant:    Number(r.PUSealant || data[i + 1][puIdx]) || 0,
       additionalCosts: ac
     });
@@ -424,6 +426,14 @@ function approveSubmission(submissionId) {
   return { success: false, error: 'Submission not found: ' + submissionId };
 }
 
+// REJECTION FLOW:
+// 1. Submission status → 'rejected'
+// 2. Rejection reason saved
+// 3. NO payment record created
+// 4. Quotation stays 'active' — subcon can resubmit
+// 5. SubconBalances unchanged
+// 6. Subcon sees rejection in MY HISTORY with reason
+// 7. Quotation reappears in subcon dropdown for resubmission
 function rejectSubmission(submissionId, reason) {
   var sheet = getSheet('Submissions');
   if (!sheet) return { success: false, error: 'Submissions sheet not found' };
@@ -435,17 +445,22 @@ function rejectSubmission(submissionId, reason) {
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][idx['SubmissionID']]) !== String(submissionId)) continue;
     var savedReason = reason || 'Rejected by admin';
+    // J = Status → 'rejected'
     sheet.getRange(r + 1, idx['Status'] + 1).setValue('rejected');
+    // K = ApprovedBy (who actioned the rejection)
+    if (idx['ApprovedBy'] !== undefined) {
+      sheet.getRange(r + 1, idx['ApprovedBy'] + 1).setValue('admin');
+    }
+    // L = ApprovedAt (when rejected)
+    if (idx['ApprovedAt'] !== undefined) {
+      sheet.getRange(r + 1, idx['ApprovedAt'] + 1).setValue(new Date());
+    }
+    // M = RejectionReason
     if (idx['RejectionReason'] !== undefined) {
       sheet.getRange(r + 1, idx['RejectionReason'] + 1).setValue(savedReason);
     }
-    return {
-      success:     true,
-      reason:      savedReason,
-      quotationNo: String(data[r][idx['QuotationNo']] || ''),
-      subconCode:  String(data[r][idx['SubconCode']]  || ''),
-      formType:    String(data[r][idx['FormType']]     || '')
-    };
+    // No payment record, no Quotations status change, no SubconBalances mutation.
+    return { success: true, message: 'Rejected' };
   }
   return { success: false, error: 'Submission not found: ' + submissionId };
 }

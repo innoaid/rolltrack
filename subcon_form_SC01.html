@@ -223,6 +223,7 @@ body{max-width:480px;margin:0 auto}
       </div>
     </div>
     <div id="pendingNotice" style="display:none;background:#fff3cd;border-radius:8px;padding:8px 12px;font-size:12px;color:#856404;margin:8px 20px 0"></div>
+    <div id="rejectedNotice" style="display:none;background:rgba(255,60,60,0.1);border:1px solid rgba(255,60,60,0.2);border-radius:8px;padding:8px 12px;font-size:12px;color:#ff8080;margin:8px 20px 0"></div>
   </div>
 
   <div class="actions-title">What do you want to do? / Apa yang anda nak buat?</div>
@@ -611,6 +612,20 @@ function applySubconData(d) {
       notice.style.display = 'none';
     }
   }
+
+  // Show rejected notice
+  var rejectedCount = pendingSubmissions.filter(function(s) {
+    return String(s.status||'').toLowerCase() === 'rejected';
+  }).length;
+  var rejNotice = document.getElementById('rejectedNotice');
+  if (rejNotice) {
+    if (rejectedCount > 0) {
+      rejNotice.textContent = '\u274c ' + rejectedCount + ' submission(s) rejected \u2014 please check My History and resubmit';
+      rejNotice.style.display = 'block';
+    } else {
+      rejNotice.style.display = 'none';
+    }
+  }
 }
 
 async function loadSubconData() {
@@ -938,7 +953,17 @@ function renderHistory() {
       const st = String(s.status||'').toLowerCase();
       const badgeCls = st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'pending';
       const badgeIcon = st === 'approved' ? '✅' : st === 'rejected' ? '❌' : '⏳';
-      return `<div class="hist-card">
+      const rejectedStyle = st === 'rejected' ? ' style="border-left:3px solid #ff4040;"' : '';
+      const rejectedText = st === 'rejected'
+        ? '<div class="hist-badge rejected" style="display:inline-block;margin-top:6px">❌ REJECTED</div>'
+          + '<div style="font-size:12px;color:#ff6060;font-style:italic;margin-top:4px;">'
+          + 'Reason: ' + (s.rejectionReason||s.notes||'—')
+          + '</div>'
+          + '<div style="font-size:11px;color:#ff8080;margin-top:4px;font-weight:600;">'
+          + 'Please resubmit / Sila hantar semula'
+          + '</div>'
+        : '';
+      return `<div class="hist-card"${rejectedStyle}>
         <div class="hist-top">
           <div class="hist-icon ${ft}">${ICONS[ft]||'📋'}</div>
           <div class="hist-type">${LABELS[ft]||ft}</div>
@@ -949,7 +974,7 @@ function renderHistory() {
           ${s.quotationNo ? '<br>Quotation: <strong>'+s.quotationNo+'</strong>' : ''}
           ${s.notes ? '<br>Notes: '+s.notes : ''}
         </div>
-        ${st === 'rejected' ? '<div class="hist-reject">Reason: '+(s.rejectionReason||s.notes||'—')+'</div>' : ''}
+        ${rejectedText}
       </div>`;
     }).join('');
   }
