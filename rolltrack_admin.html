@@ -1764,86 +1764,137 @@ async function submitMarkPaid() {
   }
 }
 
-// ── SC01 Report Generator ──────────────────────────────
+// ── Subcon Payment Report Generator ────────────────────
 function generateReport() {
-  const sc01 = payData.filter(p => (p['SubconCode']||'') === 'SC01');
-  if (!sc01.length) { toast('No SC01 payment records found'); return; }
+  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel'};
+  const sc = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
+  const subconName = NAME_BY_CODE[sc] || 'All Subcons';
 
+  const data = sc ? payData.filter(p => (p['SubconCode']||'') === sc) : payData;
+  if (!data.length) { toast('No ' + (sc || 'matching') + ' payment records found'); return; }
+
+  // Quotation lookup for customer name + site address
+  const qtMap = {};
+  (D.quotations || []).forEach(q => { qtMap[q.quotationNo] = q; });
+
+  // Totals across the filtered set
   let totalOwed = 0, totalPaid = 0;
-  sc01.forEach(p => {
-    totalOwed += Number(p['TotalAmount']  || 0);
+  data.forEach(p => {
+    totalOwed += Number(p['TotalAmount'] || 0);
     if (p['Payment1Status'] === 'paid') totalPaid += Number(p['Payment1Amount'] || 0);
     if (p['Payment2Status'] === 'paid') totalPaid += Number(p['Payment2Amount'] || 0);
   });
   const outstanding = totalOwed - totalPaid;
-  const genDate = new Date().toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
-  const rows = sc01.map(p => {
-    const p1Color = p['Payment1Status'] === 'paid' ? 'color:green' : 'color:#c01818';
-    const p2Color = p['Payment2Status'] === 'paid' ? 'color:green' : 'color:#c01818';
-    return `<tr>
-      <td>${p['QuotationNo']||''}</td>
-      <td>${p.projectName||p.clientName||'—'}</td>
-      <td style="text-align:right">${p['RollsInstalled']||0}</td>
-      <td style="text-align:right">RM ${fmtN(Number(p['RateApplied']||0))}</td>
-      <td style="text-align:right;font-weight:700">RM ${fmtN(Number(p['TotalAmount']||0))}</td>
-      <td style="text-align:center;font-weight:700;${p1Color}">${(p['Payment1Status']||'unpaid').toUpperCase()}</td>
-      <td style="text-align:center;font-weight:700;${p2Color}">${(p['Payment2Status']||'unpaid').toUpperCase()}</td>
-    </tr>`;
-  }).join('');
+  const genDate   = new Date().toLocaleDateString('en-MY',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const rangeFrom = filterFrom ? fmtDate(filterFrom) : '—';
+  const rangeTo   = filterTo   ? fmtDate(filterTo)   : '—';
+
+  // Render a single payment record as a card
+  function renderCard(p) {
+    const qno   = p['QuotationNo'] || '';
+    const qt    = qno ? qtMap[qno] : null;
+    const customerName = qt ? (qt.clientName  || '') : '';
+    const address      = qt ? (qt.siteAddress || '') : '';
+    const rolls = Number(p['RollsInstalled'] || 0);
+    const rate  = Number(p['RateApplied']    || 0);
+    const total = Number(p['TotalAmount']    || 0);
+    const ac    = p.additionalCosts || [];
+    const addTot = Number(p.additionalTotal || 0);
+    const hasAC  = ac.length > 0 && addTot > 0;
+    const grand  = total + addTot;
+
+    const p1amt = Number(p['Payment1Amount'] || 0);
+    const p1st  = p['Payment1Status'] || 'unpaid';
+    const p2amt = Number(p['Payment2Amount'] || 0);
+    const p2st  = p['Payment2Status'] || 'unpaid';
+    const p1Due = getP1DueDate(p);
+    const p2Due = getP2DueDate(p);
+    const p1DueStr = p1Due ? fmtDate(p1Due) : '—';
+    const p2DueStr = p2Due ? fmtDate(p2Due) : '—';
+    const p1Tag = p1st === 'paid' ? 'PAID' : 'UNPAID';
+    const p2Tag = p2st === 'paid' ? 'PAID' : (p1st === 'paid' ? 'UNPAID' : 'NOT DUE');
+    const p1Color = p1st === 'paid' ? 'color:green' : 'color:#c01818';
+    const p2Color = p2st === 'paid' ? 'color:green' : (p1st === 'paid' ? 'color:#c01818' : 'color:#888');
+
+    const acLine = hasAC
+      ? `<div class="rec-ac">Additional costs: ${ac.map(c => (c.desc||'') + ' RM' + Number(c.amount||0).toFixed(2)).join(', ')}</div>`
+      : '';
+    const grandLine = hasAC
+      ? `<div class="rec-grand">Grand total: RM ${fmtN(grand)}</div>`
+      : '';
+
+    return `<div class="rec">
+      <div class="rec-qno">${qno}</div>
+      <div class="rec-cust">Customer: ${customerName || '—'}</div>
+      <div class="rec-addr">Address: ${address || '—'}</div>
+      <div class="rec-meta">${rolls} rolls · RM ${fmtN(rate)}/roll · Total: <strong>RM ${fmtN(total)}</strong></div>
+      <div class="rec-p" style="${p1Color}">P1: RM ${fmtN(p1amt)} [${p1Tag}] Due: ${p1DueStr}</div>
+      <div class="rec-p" style="${p2Color}">P2: RM ${fmtN(p2amt)} [${p2Tag}] Due: ${p2DueStr}</div>
+      ${acLine}
+      ${grandLine}
+    </div>`;
+  }
+
+  // Body content: flat list when a subcon is selected, grouped sections when "All"
+  let body;
+  if (sc) {
+    body = data.map(renderCard).join('');
+  } else {
+    const groups = {};
+    data.forEach(p => {
+      const code = p['SubconCode'] || 'UNKNOWN';
+      (groups[code] = groups[code] || []).push(p);
+    });
+    body = Object.keys(groups).sort().map(code => {
+      const list = groups[code];
+      let owed = 0, paid = 0;
+      list.forEach(p => {
+        owed += Number(p['TotalAmount'] || 0);
+        if (p['Payment1Status'] === 'paid') paid += Number(p['Payment1Amount'] || 0);
+        if (p['Payment2Status'] === 'paid') paid += Number(p['Payment2Amount'] || 0);
+      });
+      const grpName = NAME_BY_CODE[code] || code;
+      const grpOut  = owed - paid;
+      return `<h3 class="grp">${grpName} (${code}) — ${list.length} record${list.length===1?'':'s'} · Outstanding RM ${fmtN(grpOut)}</h3>`
+           + list.map(renderCard).join('');
+    }).join('');
+  }
 
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SC01 Payment Statement — Innovation AID</title>
+<title>Payment Report — ${subconName} | Innovation AID</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:13px;color:#111;padding:32px;max-width:960px;margin:0 auto}
   h1{font-size:22px;margin:0 0 4px}
-  h2{font-size:15px;font-weight:normal;color:#555;margin:0 0 20px}
-  .meta{font-size:12px;color:#555;margin-bottom:24px;line-height:1.8}
-  .summary{display:flex;gap:0;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:24px}
-  .sum-item{flex:1;padding:14px 18px;text-align:center;border-right:1px solid #ddd}
-  .sum-item:last-child{border-right:none}
-  .sum-n{font-size:22px;font-weight:900;line-height:1.2;margin-bottom:3px}
-  .sum-l{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:#777}
-  table{width:100%;border-collapse:collapse;margin-bottom:24px}
-  th{background:#111;color:#fff;padding:9px 10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
-  td{padding:8px 10px;border-bottom:1px solid #eee}
-  tr:nth-child(even) td{background:#fafafa}
-  .total-row td{font-weight:bold;border-top:2px solid #111;background:#f0f0f0}
-  .print-btn{margin-top:8px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
-  @media print{.print-btn{display:none}body{padding:16px}}
+  h2{font-size:16px;font-weight:600;color:#333;margin:0 0 18px}
+  h3.grp{font-size:14px;font-weight:700;color:#111;border-bottom:2px solid #111;padding-bottom:4px;margin:22px 0 10px}
+  .meta{font-size:12px;color:#444;margin-bottom:22px;line-height:1.7;background:#f7f7f7;border:1px solid #e3e3e3;border-radius:8px;padding:12px 14px}
+  .meta strong{color:#111}
+  .rec{border:1px solid #ddd;border-radius:8px;padding:11px 14px;margin-bottom:10px;background:#fff;page-break-inside:avoid}
+  .rec-qno{font-weight:800;font-size:14px;margin-bottom:2px}
+  .rec-cust,.rec-addr{font-size:12px;color:#333;margin-bottom:1px}
+  .rec-meta{font-size:12px;margin:6px 0}
+  .rec-p{font-size:12px;font-weight:700;margin-top:2px}
+  .rec-ac{font-size:11px;color:#555;margin-top:4px;font-style:italic}
+  .rec-grand{font-size:13px;font-weight:800;margin-top:4px;padding-top:4px;border-top:1px dashed #bbb}
+  .print-btn{margin-top:10px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+  @media print{.print-btn{display:none}body{padding:16px} .rec{break-inside:avoid}}
 </style>
 </head>
 <body>
 <h1>Innovation AID Sdn Bhd</h1>
-<h2>Subcon Payment Statement</h2>
+<h2>Payment Report — ${subconName}</h2>
 <div class="meta">
-  <strong>Subcontractor:</strong> Team Atik (SC01)<br>
+  <strong>Generated for:</strong> ${subconName} (${sc || 'All'})<br>
+  <strong>Date range:</strong> ${rangeFrom} to ${rangeTo}<br>
+  <strong>Total records:</strong> ${data.length} payment${data.length===1?'':'s'}<br>
+  <strong>Total outstanding:</strong> RM ${fmtN(outstanding)}<br>
   <strong>Generated:</strong> ${genDate}
 </div>
-<div class="summary">
-  <div class="sum-item"><div class="sum-n">RM ${fmtN(totalOwed)}</div><div class="sum-l">Total Owed</div></div>
-  <div class="sum-item"><div class="sum-n" style="color:green">RM ${fmtN(totalPaid)}</div><div class="sum-l">Total Paid</div></div>
-  <div class="sum-item"><div class="sum-n" style="color:${outstanding>0?'#c01818':'green'}">RM ${fmtN(outstanding)}</div><div class="sum-l">Outstanding</div></div>
-</div>
-<table>
-<thead>
-  <tr>
-    <th>Quotation No</th><th>Project</th><th>Rolls</th>
-    <th>Rate/Roll</th><th>Amount</th><th>P1 Status</th><th>P2 Status</th>
-  </tr>
-</thead>
-<tbody>
-  ${rows}
-  <tr class="total-row">
-    <td colspan="4" style="text-align:right">TOTAL</td>
-    <td style="text-align:right">RM ${fmtN(totalOwed)}</td>
-    <td colspan="2"></td>
-  </tr>
-</tbody>
-</table>
+${body}
 <button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
 </body>
 </html>`;
