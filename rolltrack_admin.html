@@ -1807,6 +1807,10 @@ function generateReport() {
     const p1st  = p['Payment1Status'] || 'unpaid';
     const p2amt = Number(p['Payment2Amount'] || 0);
     const p2st  = p['Payment2Status'] || 'unpaid';
+    const p1Due = getP1DueDate(p);
+    const p2Due = getP2DueDate(p);
+    const p1DueStr = p1Due ? fmtDate(p1Due) : '—';
+    const p2DueStr = p2Due ? fmtDate(p2Due) : '—';
     const p1Tag = p1st === 'paid' ? 'PAID' : 'UNPAID';
     const p2Tag = p2st === 'paid' ? 'PAID' : (p1st === 'paid' ? 'UNPAID' : 'NOT DUE');
     const p1Color = p1st === 'paid' ? 'color:green' : 'color:#c01818';
@@ -1823,8 +1827,8 @@ function generateReport() {
       <td class="c-num">${rolls}</td>
       <td class="c-num">RM ${fmtN(rate)}</td>
       <td class="c-num c-amt">RM ${fmtN(total)}${acLine}</td>
-      <td class="c-num" style="${p1Color}">RM ${fmtN(p1amt)}<div class="tag">[${p1Tag}]</div></td>
-      <td class="c-num" style="${p2Color}">RM ${fmtN(p2amt)}<div class="tag">[${p2Tag}]</div></td>
+      <td class="c-num" style="${p1Color}">RM ${fmtN(p1amt)}<div class="tag">[${p1Tag}]</div><div class="due">Due: ${p1DueStr}</div></td>
+      <td class="c-num" style="${p2Color}">RM ${fmtN(p2amt)}<div class="tag">[${p2Tag}]</div><div class="due">Due: ${p2DueStr}</div></td>
     </tr>`;
   }
 
@@ -1911,6 +1915,7 @@ function generateReport() {
   .c-amt{font-weight:700}
   .ac-line{font-size:10px;color:#888;font-style:italic;margin-top:2px;font-weight:400}
   .tag{font-size:9px;font-weight:700;letter-spacing:.4px;margin-top:1px}
+  .due{font-size:9.5px;font-weight:600;color:#666;margin-top:1px;letter-spacing:.2px}
   .total-row td{font-weight:800;border-top:2px solid #111;background:#f0f0f0}
   .print-btn{margin-top:10px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
   @media print{.print-btn{display:none}body{padding:14px;max-width:none} table{page-break-inside:auto} tr{page-break-inside:avoid}}
