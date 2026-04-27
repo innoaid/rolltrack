@@ -379,6 +379,13 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div class="chip" onclick="filterPayments('paid',this)">Paid</div>
   </div>
   <button class="btn btn-b" style="margin-bottom:11px" id="payReportBtn" onclick="generateReport()">📄 &nbsp;Generate Report</button>
+  <div style="display:flex;gap:6px;margin-bottom:11px;align-items:center;flex-wrap:wrap;font-size:12px">
+    <span style="color:var(--muted);font-weight:700">Bank tally:</span>
+    <input type="date" id="bankFrom" style="font-size:12px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--ink)">
+    <span style="color:var(--muted)">→</span>
+    <input type="date" id="bankTo"   style="font-size:12px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--ink)">
+    <button class="btn btn-b" style="padding:6px 14px;font-size:12px" onclick="generateBankTallyReport()">🏦 &nbsp;Tally</button>
+  </div>
   <div id="payList"></div>
 </div>
 
@@ -1616,6 +1623,20 @@ function renderPayments() {
       </div>
     </div>`;
   }).join('');
+
+  defaultBankRange();
+}
+
+// Default the bank-tally date inputs to first-of-current-month → today,
+// only when they're still empty so the user's chosen range survives a re-render.
+function defaultBankRange() {
+  const now = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fmt = d => d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+  const fEl = ge('bankFrom'); if (fEl && !fEl.value) fEl.value = fmt(first);
+  const tEl = ge('bankTo');   if (tEl && !tEl.value) tEl.value = fmt(now);
 }
 
 // ── Weekly Payment Summary ────────────────────────────
@@ -2004,6 +2025,155 @@ function generateReport() {
   <strong>Generated:</strong> ${genDate}
 </div>
 ${body}
+<button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
+</body>
+</html>`;
+
+  const w = window.open('', '_blank');
+  if (w) { w.document.write(html); w.document.close(); }
+  else toast('Allow pop-ups to view the report');
+}
+
+// ── Bank Tally Report ──────────────────────────────────
+// One row per actual P1 / P2 disbursement whose Payment*Date falls inside the
+// chosen window. Sorted chronologically so the boss can tick rows off against
+// a bank statement.
+function generateBankTallyReport() {
+  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel'};
+  const sc = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
+  const subconName = NAME_BY_CODE[sc] || 'All Subcons';
+
+  const fromStr = ge('bankFrom') ? ge('bankFrom').value : '';
+  const toStr   = ge('bankTo')   ? ge('bankTo').value   : '';
+  if (!fromStr || !toStr) { toast('Pick a from and to date'); return; }
+  const fromD = new Date(fromStr + 'T00:00:00');
+  const toD   = new Date(toStr   + 'T23:59:59');
+  if (toD < fromD) { toast('From date is after to date'); return; }
+
+  const data = sc ? payData.filter(p => (p['SubconCode']||'') === sc) : payData;
+
+  const qtMap = {};
+  (D.quotations || []).forEach(q => { qtMap[q.quotationNo] = q; });
+
+  const rows = [];
+  data.forEach(p => {
+    const subconCode = p['SubconCode'] || '';
+    const qno  = p['QuotationNo'] || '';
+    const qt   = qno ? qtMap[qno] : null;
+    const customer = (qt && qt.clientName) || p.clientName || '';
+    if (p['Payment1Status'] === 'paid' && p['Payment1Date']) {
+      const d = parseDate(p['Payment1Date']);
+      if (d && d >= fromD && d <= toD) {
+        rows.push({ date:d, subconCode, qno, customer, pNum:'P1',
+                    amount:Number(p['Payment1Amount']||0),
+                    ref:p['Payment1Reference'] || '' });
+      }
+    }
+    if (p['Payment2Status'] === 'paid' && p['Payment2Date']) {
+      const d = parseDate(p['Payment2Date']);
+      if (d && d >= fromD && d <= toD) {
+        rows.push({ date:d, subconCode, qno, customer, pNum:'P2',
+                    amount:Number(p['Payment2Amount']||0),
+                    ref:p['Payment2Reference'] || '' });
+      }
+    }
+  });
+
+  if (!rows.length) {
+    toast('No paid disbursements in that range' + (sc ? ' for ' + sc : ''));
+    return;
+  }
+
+  rows.sort((a, b) => (a.date - b.date) || a.subconCode.localeCompare(b.subconCode));
+  const grandTotal = rows.reduce((s, r) => s + r.amount, 0);
+
+  const showSubconCol = !sc;
+  const bySubcon = {};
+  rows.forEach(r => { bySubcon[r.subconCode] = (bySubcon[r.subconCode] || 0) + r.amount; });
+
+  const tbody = rows.map(r => `<tr>
+    <td>${fmtDate(r.date)}</td>
+    ${showSubconCol ? `<td>${NAME_BY_CODE[r.subconCode] || r.subconCode} <span style="color:#888">(${r.subconCode})</span></td>` : ''}
+    <td>${r.qno}</td>
+    <td>${r.customer || '—'}</td>
+    <td>${r.pNum}</td>
+    <td class="c-num c-amt">RM ${fmtN(r.amount)}</td>
+    <td>${r.ref || '—'}</td>
+  </tr>`).join('');
+
+  const subtotalsTable = showSubconCol ? `
+    <h3 class="grp">Subtotal by subcon</h3>
+    <table>
+      <thead><tr><th>Subcon</th><th class="c-num">Disbursements</th><th class="c-num">Subtotal</th></tr></thead>
+      <tbody>
+        ${Object.keys(bySubcon).sort().map(code => {
+          const cnt = rows.filter(r => r.subconCode === code).length;
+          return `<tr><td>${NAME_BY_CODE[code] || code} <span style="color:#888">(${code})</span></td><td class="c-num">${cnt}</td><td class="c-num c-amt">RM ${fmtN(bySubcon[code])}</td></tr>`;
+        }).join('')}
+        <tr class="total-row">
+          <td style="text-align:right">GRAND TOTAL</td>
+          <td class="c-num">${rows.length}</td>
+          <td class="c-num">RM ${fmtN(grandTotal)}</td>
+        </tr>
+      </tbody>
+    </table>` : '';
+
+  const colCount = showSubconCol ? 7 : 6;
+  const genDate = new Date().toLocaleDateString('en-MY', {weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Bank Tally — ${subconName} | Innovation AID</title>
+<style>
+  body{font-family:Arial,sans-serif;font-size:12px;color:#111;padding:28px;max-width:1100px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  h2{font-size:16px;font-weight:600;color:#333;margin:0 0 18px}
+  h3.grp{font-size:14px;font-weight:700;color:#111;border-bottom:2px solid #111;padding-bottom:4px;margin:24px 0 8px}
+  .meta{font-size:12px;color:#444;margin-bottom:18px;line-height:1.7;background:#f7f7f7;border:1px solid #e3e3e3;border-radius:8px;padding:12px 14px}
+  .meta strong{color:#111}
+  table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:11.5px}
+  th{background:#111;color:#fff;padding:8px 8px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+  td{padding:7px 8px;border-bottom:1px solid #eee;vertical-align:top}
+  tr:nth-child(even) td{background:#fafafa}
+  .c-num{text-align:right}
+  .c-amt{font-weight:700}
+  .total-row td{font-weight:800;border-top:2px solid #111;background:#f0f0f0}
+  .print-btn{margin-top:10px;padding:10px 24px;background:#111;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer}
+  @media print{.print-btn{display:none}body{padding:14px;max-width:none} table{page-break-inside:auto} tr{page-break-inside:avoid}}
+</style>
+</head>
+<body>
+<h1>Innovation AID Sdn Bhd</h1>
+<h2>Bank Tally Report — ${subconName}</h2>
+<div class="meta">
+  <strong>For:</strong> ${subconName} (${sc || 'All'})<br>
+  <strong>Period:</strong> ${fmtDate(fromD)} to ${fmtDate(toD)}<br>
+  <strong>Total disbursements:</strong> ${rows.length}<br>
+  <strong>Grand total:</strong> RM ${fmtN(grandTotal)}<br>
+  <strong>Generated:</strong> ${genDate}
+</div>
+<table>
+  <thead><tr>
+    <th>Date</th>
+    ${showSubconCol ? '<th>Subcon</th>' : ''}
+    <th>Quotation</th>
+    <th>Customer</th>
+    <th>P#</th>
+    <th class="c-num">Amount</th>
+    <th>Reference</th>
+  </tr></thead>
+  <tbody>
+    ${tbody}
+    <tr class="total-row">
+      <td colspan="${colCount - 2}" style="text-align:right">GRAND TOTAL</td>
+      <td class="c-num">RM ${fmtN(grandTotal)}</td>
+      <td></td>
+    </tr>
+  </tbody>
+</table>
+${subtotalsTable}
 <button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
 </body>
 </html>`;
