@@ -1485,6 +1485,11 @@ function renderPayments() {
     const ac    = p.additionalCosts || [];
     const addTot = p.additionalTotal || 0;
     const hasAC  = ac.length > 0 && addTot > 0;
+    const splitMode = String(p['SplitMode']||'').trim() === 'split-50-50' ? 'split-50-50' : 'p1-only';
+    const p1Lbl = !hasAC ? 'Payment 1 (50%)'
+                : (splitMode === 'split-50-50' ? "Payment 1 (50% rolls + 50% add'l)" : 'Payment 1 (50% + additional)');
+    const p2Lbl = !hasAC ? 'Payment 2 (50%)'
+                : (splitMode === 'split-50-50' ? "Payment 2 (50% rolls + 50% add'l)" : 'Payment 2 (50% rolls)');
     const p1amt = Number(p['Payment1Amount'] || 0);
     const p1st  = p['Payment1Status']    || 'unpaid';
     const p1dt  = p['Payment1Date']      || '';
@@ -1547,14 +1552,14 @@ function renderPayments() {
       </div>` : ''}
       <div class="pay-row">
         <div class="pay-row-info">
-          <span class="pay-row-lbl">${hasAC ? 'Payment 1 (50% + additional)' : 'Payment 1 (50%)'}</span>
+          <span class="pay-row-lbl">${p1Lbl}</span>
           <span class="pay-row-amt">RM ${fmtN(p1amt)}</span>${p1Badge}${p1Info}
         </div>
         ${p1Btn}
       </div>
       <div class="pay-row">
         <div class="pay-row-info">
-          <span class="pay-row-lbl">${hasAC ? 'Payment 2 (50% rolls)' : 'Payment 2 (50%)'}</span>
+          <span class="pay-row-lbl">${p2Lbl}</span>
           <span class="pay-row-amt">RM ${fmtN(p2amt)}</span>${p2Badge}${p2Info}
         </div>
         ${p2Btn}

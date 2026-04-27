@@ -843,14 +843,28 @@ function calculatePaymentForQuotation(quotationNo, subconCode) {
   var calc = calculateTieredRate(subconCode, totalRolls);
   if (!calc.success) return calc;
   calc.totalRolls = totalRolls;
-  // Add additional costs: full amount goes to Payment 1
-  var totalAdditional = allAdditionalCosts.reduce(function(s, c) { return s + (Number(c.amount) || 0); }, 0);
-  if (totalAdditional > 0) {
-    calc.additionalCosts = allAdditionalCosts;
-    calc.additionalTotal = totalAdditional;
-    calc.payment1 = calc.payment1 + totalAdditional;
-    calc.total = calc.total + totalAdditional;
+  // Expose base values; the writer (upsertPaymentRecord) applies the split.
+  calc.basePayment1    = calc.payment1;
+  calc.basePayment2    = calc.payment2;
+  calc.baseTotal       = calc.total;
+  calc.additionalCosts = allAdditionalCosts;
+  calc.additionalTotal = allAdditionalCosts.reduce(function(s, c) { return s + (Number(c.amount) || 0); }, 0);
+  return calc;
+}
+
+// applySplit — picks Payment1Amount / Payment2Amount / TotalAmount based on splitMode.
+//   'split-50-50' → additional is split evenly across P1 and P2  (new default)
+//   'p1-only'     → additional all goes to P1                    (legacy)
+function applySplit(calc, splitMode) {
+  var add = Number(calc.additionalTotal) || 0;
+  if (splitMode === 'split-50-50') {
+    calc.payment1 = (Number(calc.basePayment1) || 0) + add / 2;
+    calc.payment2 = (Number(calc.basePayment2) || 0) + add / 2;
+  } else { // 'p1-only' (legacy)
+    calc.payment1 = (Number(calc.basePayment1) || 0) + add;
+    calc.payment2 = (Number(calc.basePayment2) || 0);
   }
+  calc.total = (Number(calc.baseTotal) || 0) + add;
   return calc;
 }
 
@@ -864,12 +878,25 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
   var headers = data[0];
   var idx     = {};
   headers.forEach(function(h, i) { idx[h] = i; });
-  var qIdx = idx['QuotationNo'];
+
+  // Auto-add SplitMode header (column S) on legacy sheets so writes work.
+  if (idx['SplitMode'] === undefined) {
+    var nextCol = headers.length + 1;
+    sheet.getRange(1, nextCol).setValue('SplitMode');
+    idx['SplitMode'] = headers.length;
+    headers.push('SplitMode');
+  }
+  var smIdx = idx['SplitMode'];
+  var qIdx  = idx['QuotationNo'];
 
   // Check if record exists — update in place
   for (var r = 1; r < data.length; r++) {
     if (String(data[r][qIdx]) !== String(quotationNo)) continue;
-    // Update rolls, rate, amounts — preserve payment statuses/dates/refs
+    // Sticky split mode: legacy rows (empty S) keep p1-only forever.
+    var existingMode = String((data[r][smIdx] !== undefined ? data[r][smIdx] : '') || '').trim();
+    var splitMode = existingMode === 'split-50-50' ? 'split-50-50' : 'p1-only';
+    applySplit(calc, splitMode);
+
     sheet.getRange(r + 1, idx['RollsInstalled'] + 1).setValue(calc.totalRolls);
     sheet.getRange(r + 1, idx['RateApplied']    + 1).setValue(calc.rate);
     sheet.getRange(r + 1, idx['TotalAmount']    + 1).setValue(calc.total);
@@ -880,10 +907,13 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     var atColIdx = idx['AdditionalTotal'];
     if (acColIdx !== undefined) sheet.getRange(r + 1, acColIdx + 1).setValue(calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]');
     if (atColIdx !== undefined) sheet.getRange(r + 1, atColIdx + 1).setValue(calc.additionalTotal || 0);
+    // Do not overwrite SplitMode on existing rows.
     return { success: true, updated: true, paymentID: data[r][idx['PaymentID']] };
   }
 
-  // Create new record
+  // Create new record — uses new split logic
+  applySplit(calc, 'split-50-50');
+
   var subconName = SUBCONS[subconCode] || subconCode;
   var subSheet   = getSheet('SubconBalances');
   if (subSheet) {
@@ -915,7 +945,8 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     '',                // Payment2Reference
     nowStr(),          // CreatedAt
     calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]',  // Q  AdditionalCosts
-    calc.additionalTotal || 0   // R  AdditionalTotal
+    calc.additionalTotal || 0,  // R  AdditionalTotal
+    'split-50-50'      // S  SplitMode
   ]);
   return { success: true, created: true, paymentID: paymentID };
 }
@@ -972,6 +1003,12 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
 
   var paymentID = 'PAY-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss');
 
+  // Auto-add SplitMode header (column S) on legacy sheets so the appended row aligns.
+  var crHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (crHeaders.indexOf('SplitMode') < 0) {
+    sheet.getRange(1, crHeaders.length + 1).setValue('SplitMode');
+  }
+
   sheet.appendRow([
     paymentID,        // PaymentID
     quotationNo,      // QuotationNo
@@ -990,7 +1027,8 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
     '',               // Payment2Reference
     nowStr(),         // CreatedAt
     '[]',             // Q  AdditionalCosts
-    0                 // R  AdditionalTotal
+    0,                // R  AdditionalTotal
+    'split-50-50'     // S  SplitMode
   ]);
 
   return {
