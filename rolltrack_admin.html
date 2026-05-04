@@ -2169,6 +2169,77 @@ function generateReport() {
     </table>`;
   }
 
+  // ── This Week's Payments — line-item breakdown of what's due ──
+  // Same bucket logic as the in-page Weekly Summary, trimmed so "Coming Up"
+  // means today < due ≤ next Monday (this week's window, not the full 30-day
+  // upcoming horizon).
+  const _now    = new Date();
+  const _today  = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
+  const _nextMon = getNextMonday(_today);
+  const wkOver = [], wkToday = [], wkSoon = [];
+  data.forEach(p => {
+    const subName = p['SubconName'] || NAME_BY_CODE[p['SubconCode']] || p['SubconCode'] || '?';
+    const qno  = p['QuotationNo'] || '';
+    const proj = (qtMap[qno] && qtMap[qno].projectName) || '';
+    [1, 2].forEach(n => {
+      const st = p['Payment' + n + 'Status'] || 'unpaid';
+      if (st === 'paid') return;
+      if (n === 2 && (p['Payment1Status'] || 'unpaid') !== 'paid') return;
+      const amt = Number(p['Payment' + n + 'Amount'] || 0);
+      if (!amt) return;
+      const due = n === 1 ? getP1DueDate(p) : getP2DueDate(p);
+      if (!due) return;
+      const item = { subName, qno, proj, pNum: n, amt, due };
+      if (due < _today) {
+        item.daysOverdue = Math.ceil((_today - due) / 86400000);
+        wkOver.push(item);
+      } else if (due.getTime() === _today.getTime()) {
+        wkToday.push(item);
+      } else if (due <= _nextMon) {
+        wkSoon.push(item);
+      }
+    });
+  });
+  const wkOverTot  = wkOver.reduce((s, i) => s + i.amt, 0);
+  const wkTodayTot = wkToday.reduce((s, i) => s + i.amt, 0);
+  const wkSoonTot  = wkSoon.reduce((s, i) => s + i.amt, 0);
+  const wkTotal    = wkOverTot + wkTodayTot + wkSoonTot;
+  const wkHas      = wkOver.length || wkToday.length || wkSoon.length;
+
+  const renderWkRow = (i, statusHtml) => `<tr>
+    <td>${statusHtml}</td>
+    <td>${i.subName}</td>
+    <td class="c-qno">${i.qno}</td>
+    <td>${i.proj || '—'}</td>
+    <td class="c-num">P${i.pNum}</td>
+    <td class="c-num c-amt">RM ${fmtN(i.amt)}</td>
+    <td class="c-num">${fmtDate(i.due)}</td>
+  </tr>`;
+
+  const weeklyBlock = !wkHas ? '' : `<h3 class="grp">This Week's Payments — week ending ${fmtDate(_nextMon)}</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Status</th>
+      <th>Subcon</th>
+      <th>Quotation</th>
+      <th>Project</th>
+      <th class="c-num">Pmt</th>
+      <th class="c-num">Amount</th>
+      <th class="c-num">Due</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${wkOver.map(i => renderWkRow(i, `<span style="color:#c01818;font-weight:700">OVERDUE ${i.daysOverdue}d</span>`)).join('')}
+    ${wkToday.map(i => renderWkRow(i, `<span style="color:#b06000;font-weight:700">DUE TODAY</span>`)).join('')}
+    ${wkSoon.map(i => renderWkRow(i, `<span style="color:#666">COMING UP</span>`)).join('')}
+    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#c01818">Subtotal — Overdue (${wkOver.length})</td><td class="c-num" style="font-style:italic;color:#c01818">RM ${fmtN(wkOverTot)}</td><td></td></tr>
+    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#b06000">Subtotal — Due Today (${wkToday.length})</td><td class="c-num" style="font-style:italic;color:#b06000">RM ${fmtN(wkTodayTot)}</td><td></td></tr>
+    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#666">Subtotal — Coming Up (${wkSoon.length})</td><td class="c-num" style="font-style:italic;color:#666">RM ${fmtN(wkSoonTot)}</td><td></td></tr>
+    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL THIS WEEK</td><td class="c-num">RM ${fmtN(wkTotal)}</td><td></td></tr>
+  </tbody>
+</table>`;
+
   // Body content: single table when a subcon is selected, one table per subcon when "All"
   let body;
   if (sc) {
@@ -2232,6 +2303,7 @@ function generateReport() {
   <strong>Total outstanding:</strong> RM ${fmtN(outstanding)}<br>
   <strong>Generated:</strong> ${genDate}
 </div>
+${weeklyBlock}
 ${body}
 <button class="print-btn" onclick="window.print()">🖨️ &nbsp;Print / Save as PDF</button>
 </body>
