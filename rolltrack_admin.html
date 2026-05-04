@@ -1565,14 +1565,20 @@ function renderPayments() {
     const p1DueStr = p1Due ? fmtDate(p1Due) : '';
     const p2DueStr = p2Due ? fmtDate(p2Due) : '';
 
+    const p1Overdue = p1st !== 'paid' && isOverdue(p1Due);
+    const p2Overdue = p2st !== 'paid' && p1st === 'paid' && isOverdue(p2Due);
     const p1Badge = p1st === 'paid'
       ? `<span class="pay-badge pay-badge-paid">paid</span>`
-      : `<span class="pay-badge pay-badge-unpaid">unpaid</span>`;
+      : p1Overdue
+        ? `<span class="pay-badge pay-badge-unpaid">overdue</span>`
+        : `<span class="pay-badge pay-badge-nd">due ${p1DueStr || '—'}</span>`;
     const p2Badge = p2st === 'paid'
       ? `<span class="pay-badge pay-badge-paid">paid</span>`
       : p1st !== 'paid'
         ? `<span class="pay-badge pay-badge-nd">not due yet${p2DueStr ? ' · Due ' + p2DueStr : ''}</span>`
-        : `<span class="pay-badge pay-badge-unpaid">unpaid</span>`;
+        : p2Overdue
+          ? `<span class="pay-badge pay-badge-unpaid">overdue</span>`
+          : `<span class="pay-badge pay-badge-nd">due ${p2DueStr || '—'}</span>`;
 
     const p1Info = p1st === 'paid' && (p1dt || p1ref)
       ? `<div class="pay-ref">${fmtDate(p1dt)} · ${p1ref || '—'}</div>`
@@ -1657,6 +1663,13 @@ function getP1DueDate(p) {
   const base = p['FirstSubmissionAt'] || p['CreatedAt'] || '';
   const d = base ? parseDate(base) : null;
   return d ? getNextMonday(d) : null;
+}
+
+function isOverdue(dueDate) {
+  if (!dueDate) return false;
+  const t = new Date();
+  t.setHours(0,0,0,0);
+  return dueDate < t;
 }
 
 function getP2DueDate(p) {
