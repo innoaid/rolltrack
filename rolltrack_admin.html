@@ -393,7 +393,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
 <div class="ov" id="batchPayOv">
   <div class="modal" style="max-height:85vh;overflow-y:auto">
     <div class="mh"></div>
-    <div class="mt">Mark Week as Paid</div>
+    <div class="mt">Mark Payable as Paid</div>
     <div class="fg"><label>Date Paid</label><input type="date" id="bp_date"></div>
     <div class="fg"><label>Payment Reference</label><input type="text" id="bp_ref" placeholder="e.g. TT-20260401-BATCH"></div>
     <div id="bp_list" style="margin:10px 0;font-size:13px"></div>
@@ -1566,19 +1566,25 @@ function renderPayments() {
     const p2DueStr = p2Due ? fmtDate(p2Due) : '';
 
     const p1Overdue = p1st !== 'paid' && isOverdue(p1Due);
+    const p1Future  = p1st !== 'paid' && !isPayable(p1Due);
     const p2Overdue = p2st !== 'paid' && p1st === 'paid' && isOverdue(p2Due);
+    const p2Future  = p2st !== 'paid' && p1st === 'paid' && !isPayable(p2Due);
     const p1Badge = p1st === 'paid'
       ? `<span class="pay-badge pay-badge-paid">paid</span>`
       : p1Overdue
-        ? `<span class="pay-badge pay-badge-unpaid">overdue</span>`
-        : `<span class="pay-badge pay-badge-nd">due ${p1DueStr || '—'}</span>`;
+        ? `<span class="pay-badge pay-badge-unpaid">overdue · ${p1DueStr}</span>`
+        : p1Future
+          ? `<span class="pay-badge pay-badge-nd">not due yet · ${p1DueStr}</span>`
+          : `<span class="pay-badge pay-badge-unpaid">due today</span>`;
     const p2Badge = p2st === 'paid'
       ? `<span class="pay-badge pay-badge-paid">paid</span>`
       : p1st !== 'paid'
-        ? `<span class="pay-badge pay-badge-nd">not due yet${p2DueStr ? ' · Due ' + p2DueStr : ''}</span>`
+        ? `<span class="pay-badge pay-badge-nd">not due yet${p2DueStr ? ' · ' + p2DueStr : ''}</span>`
         : p2Overdue
-          ? `<span class="pay-badge pay-badge-unpaid">overdue</span>`
-          : `<span class="pay-badge pay-badge-nd">due ${p2DueStr || '—'}</span>`;
+          ? `<span class="pay-badge pay-badge-unpaid">overdue · ${p2DueStr}</span>`
+          : p2Future
+            ? `<span class="pay-badge pay-badge-nd">not due yet · ${p2DueStr}</span>`
+            : `<span class="pay-badge pay-badge-unpaid">due today</span>`;
 
     const p1Info = p1st === 'paid' && (p1dt || p1ref)
       ? `<div class="pay-ref">${fmtDate(p1dt)} · ${p1ref || '—'}</div>`
@@ -1729,7 +1735,9 @@ function buildWeeklyItems() {
       if (due < today) {
         item.daysOverdue = Math.ceil((today - due) / 86400000);
         overdue.push(item);
-      } else if (due <= nextMon) {
+      } else if (due.getTime() === today.getTime()) {
+        // Strict: only items due today are "actionable now". Future-due items
+        // (today < due) drop into upcoming so totals/batch don't pre-include them.
         dueThisWeek.push(item);
       } else if (due <= in30) {
         upcoming.push(item);
@@ -1761,7 +1769,7 @@ function renderWeeklySummary() {
   if (dwEl) {
     if (dueThisWeek.length) {
       dwEl.innerHTML = `<div style="background:var(--amber-l);border:1.5px solid rgba(255,176,32,.4);border-radius:12px;padding:12px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Due This Week</div>
+        <div style="font-size:12px;font-weight:800;color:var(--amber);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Due Today</div>
         ${dueThisWeek.map(i => `<div style="font-size:13px;padding:4px 0;color:var(--ink)">
           <strong>${i.name}</strong> · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong> · Due ${fmtDate(i.due)}
         </div>`).join('')}
@@ -1778,14 +1786,14 @@ function renderWeeklySummary() {
   if (totEl) {
     if (actionable.length) {
       totEl.innerHTML = `<div style="background:linear-gradient(135deg,var(--card),var(--card2));border:2px solid var(--orange);border-radius:14px;padding:16px;margin-bottom:10px;text-align:center">
-        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Total to prepare this Monday</div>
+        <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Total payable now</div>
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:700;color:var(--orange);line-height:1.1">RM ${fmtN(totalDue)}</div>
-        <div style="font-size:12px;color:var(--muted);margin-top:4px">${overdue.length ? 'RM ' + fmtN(overdueAmt) + ' overdue' : ''}${overdue.length && dueThisWeek.length ? ' + ' : ''}${dueThisWeek.length ? 'RM ' + fmtN(dueWeekAmt) + ' due this week' : ''}</div>
-        <button class="btn btn-o" style="margin-top:12px;width:100%" onclick="openBatchPay()">Mark Week as Paid</button>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px">${overdue.length ? 'RM ' + fmtN(overdueAmt) + ' overdue' : ''}${overdue.length && dueThisWeek.length ? ' + ' : ''}${dueThisWeek.length ? 'RM ' + fmtN(dueWeekAmt) + ' due today' : ''}</div>
+        <button class="btn btn-o" style="margin-top:12px;width:100%" onclick="openBatchPay()">Mark Payable as Paid</button>
       </div>`;
     } else {
       totEl.innerHTML = `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:10px;text-align:center">
-        <div style="font-size:13px;color:var(--muted)">No payments due this week</div>
+        <div style="font-size:13px;color:var(--muted)">Nothing payable today</div>
       </div>`;
     }
   }
@@ -1795,7 +1803,7 @@ function renderWeeklySummary() {
   if (upEl) {
     if (upcoming.length) {
       upEl.innerHTML = `<div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:12px;margin-bottom:10px">
-        <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Upcoming (8–30 days)</div>
+        <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Upcoming (1–30 days)</div>
         ${upcoming.map(i => `<div style="font-size:13px;padding:4px 0;color:var(--muted)">
           <strong>${i.name}</strong> · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong> · Due ${fmtDate(i.due)}
         </div>`).join('')}
@@ -1931,10 +1939,20 @@ function generateReport() {
     const p2Due = getP2DueDate(p);
     const p1DueStr = p1Due ? fmtDate(p1Due) : '—';
     const p2DueStr = p2Due ? fmtDate(p2Due) : '—';
-    const p1Tag = p1st === 'paid' ? 'PAID' : 'UNPAID';
-    const p2Tag = p2st === 'paid' ? 'PAID' : (p1st === 'paid' ? 'UNPAID' : 'NOT DUE');
-    const p1Color = p1st === 'paid' ? 'color:green' : 'color:#c01818';
-    const p2Color = p2st === 'paid' ? 'color:green' : (p1st === 'paid' ? 'color:#c01818' : 'color:#888');
+    // Status / colour tag per side. Future-due is grey "NOT DUE YET" so the
+    // reader can mentally exclude it from "what to pay now".
+    function tagFor(st, due) {
+      if (st === 'paid') return { tag: 'PAID', color: 'color:green' };
+      if (isOverdue(due)) return { tag: 'OVERDUE', color: 'color:#c01818' };
+      if (!isPayable(due)) return { tag: 'NOT DUE YET', color: 'color:#888' };
+      return { tag: 'DUE TODAY', color: 'color:#c01818' };
+    }
+    const p1Info = tagFor(p1st, p1Due);
+    const p2Info = (p1st !== 'paid' && p2st !== 'paid')
+      ? { tag: 'WAITING P1', color: 'color:#888' }
+      : tagFor(p2st, p2Due);
+    const p1Tag = p1Info.tag, p1Color = p1Info.color;
+    const p2Tag = p2Info.tag, p2Color = p2Info.color;
 
     const acLine = hasAC
       ? `<div class="ac-line">+ ${ac.map(c => (c.desc||'') + ' RM' + Number(c.amount||0).toFixed(2)).join(', ')}</div>`
@@ -1955,12 +1973,27 @@ function generateReport() {
   // Build a complete table (header + body rows + totals row) for a record set
   function renderTable(list) {
     let sumRolls = 0, sumAmt = 0, sumP1 = 0, sumP2 = 0;
+    let futureP1 = 0, futureP2 = 0; // unpaid AND not yet due
     list.forEach(p => {
       sumRolls += Number(p['RollsInstalled'] || 0);
       sumAmt   += Number(p['TotalAmount']    || 0);
       sumP1    += Number(p['Payment1Amount'] || 0);
       sumP2    += Number(p['Payment2Amount'] || 0);
+
+      const p1st = p['Payment1Status'] || 'unpaid';
+      const p2st = p['Payment2Status'] || 'unpaid';
+      if (p1st !== 'paid' && !isPayable(getP1DueDate(p))) {
+        futureP1 += Number(p['Payment1Amount'] || 0);
+      }
+      if (p2st !== 'paid') {
+        // P2 is "not yet due" if P1 unpaid (waiting on P1) OR if P2's own
+        // due date is in the future.
+        if (p1st !== 'paid' || !isPayable(getP2DueDate(p))) {
+          futureP2 += Number(p['Payment2Amount'] || 0);
+        }
+      }
     });
+    const hasFuture = futureP1 > 0 || futureP2 > 0;
     return `<table>
       <thead>
         <tr>
@@ -1984,6 +2017,16 @@ function generateReport() {
           <td class="c-num">RM ${fmtN(sumP1)}</td>
           <td class="c-num">RM ${fmtN(sumP2)}</td>
         </tr>
+        ${hasFuture ? `<tr>
+          <td colspan="6" style="text-align:right;font-style:italic;color:#888;font-size:11px">of which not yet due</td>
+          <td class="c-num" style="color:#888;font-style:italic">RM ${fmtN(futureP1)}</td>
+          <td class="c-num" style="color:#888;font-style:italic">RM ${fmtN(futureP2)}</td>
+        </tr>
+        <tr>
+          <td colspan="6" style="text-align:right;font-weight:700;font-size:11px">payable now</td>
+          <td class="c-num" style="font-weight:700">RM ${fmtN(sumP1 - futureP1)}</td>
+          <td class="c-num" style="font-weight:700">RM ${fmtN(sumP2 - futureP2)}</td>
+        </tr>` : ''}
       </tbody>
     </table>`;
   }
