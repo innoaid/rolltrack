@@ -1587,9 +1587,9 @@ function renderPayments() {
       ? `<div class="pay-ref">${fmtDate(p2dt)} · ${p2ref || '—'}</div>`
       : (p2DueStr && p1st === 'paid' ? `<div class="pay-ref">Due: ${p2DueStr}</div>` : '');
 
-    const p1Btn = p1st !== 'paid'
+    const p1Btn = p1st !== 'paid' && isPayable(p1Due)
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',1)">Mark Paid</button>` : '';
-    const p2Btn = p1st === 'paid' && p2st !== 'paid'
+    const p2Btn = p1st === 'paid' && p2st !== 'paid' && isPayable(p2Due)
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',2)">Mark Paid</button>` : '';
 
     return `<div class="pay-card">
@@ -1670,6 +1670,15 @@ function isOverdue(dueDate) {
   const t = new Date();
   t.setHours(0,0,0,0);
   return dueDate < t;
+}
+
+function isPayable(dueDate) {
+  // True if due has arrived or passed; null due is treated as payable so legacy
+  // rows without a date base don't lose their Mark Paid action.
+  if (!dueDate) return true;
+  const t = new Date();
+  t.setHours(0,0,0,0);
+  return dueDate <= t;
 }
 
 function getP2DueDate(p) {
