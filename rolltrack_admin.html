@@ -2203,7 +2203,10 @@ function generateReport() {
   const wkOverTot  = wkOver.reduce((s, i) => s + i.amt, 0);
   const wkTodayTot = wkToday.reduce((s, i) => s + i.amt, 0);
   const wkSoonTot  = wkSoon.reduce((s, i) => s + i.amt, 0);
-  const wkTotal    = wkOverTot + wkTodayTot + wkSoonTot;
+  // Total = payable now (overdue + due today). Coming Up is informational
+  // only — those items aren't actually payable yet, so they don't add into
+  // the week's total.
+  const wkTotal    = wkOverTot + wkTodayTot;
   const wkHas      = wkOver.length || wkToday.length || wkSoon.length;
 
   const renderWkRow = (i, statusHtml) => `<tr>
@@ -2235,8 +2238,8 @@ function generateReport() {
     ${wkSoon.map(i => renderWkRow(i, `<span style="color:#666">COMING UP</span>`)).join('')}
     <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#c01818">Subtotal — Overdue (${wkOver.length})</td><td class="c-num" style="font-style:italic;color:#c01818">RM ${fmtN(wkOverTot)}</td><td></td></tr>
     <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#b06000">Subtotal — Due Today (${wkToday.length})</td><td class="c-num" style="font-style:italic;color:#b06000">RM ${fmtN(wkTodayTot)}</td><td></td></tr>
-    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#666">Subtotal — Coming Up (${wkSoon.length})</td><td class="c-num" style="font-style:italic;color:#666">RM ${fmtN(wkSoonTot)}</td><td></td></tr>
-    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL THIS WEEK</td><td class="c-num">RM ${fmtN(wkTotal)}</td><td></td></tr>
+    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#666">Coming Up (${wkSoon.length}) — not yet payable</td><td class="c-num" style="font-style:italic;color:#666">RM ${fmtN(wkSoonTot)}</td><td></td></tr>
+    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL PAYABLE NOW (Overdue + Due Today)</td><td class="c-num">RM ${fmtN(wkTotal)}</td><td></td></tr>
   </tbody>
 </table>`;
 
