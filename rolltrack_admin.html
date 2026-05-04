@@ -1703,6 +1703,16 @@ function renderPayments() {
     const p2Btn = p1st === 'paid' && p2st !== 'paid' && isPayable(p2Due)
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',2)">Mark Paid</button>` : '';
 
+    const scCode = p['SubconCode'] || '';
+    const canUndo = p1st !== 'paid' && p2st !== 'paid';
+    const qnoEsc = String(qno).replace(/'/g, "\\'");
+    const undoFooter = canUndo
+      ? `<div style="padding:8px 12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" style="color:var(--red);border-color:var(--red-l);font-size:11px"
+            onclick="undoApproval('${qnoEsc}','${scCode}')">↶ Undo Approval</button>
+        </div>`
+      : `<div style="padding:8px 12px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);font-style:italic;text-align:right">🔒 Undo locked — payment already disbursed</div>`;
+
     return `<div class="pay-card">
       <div class="pay-hdr">
         <div class="pay-proj">
@@ -1738,6 +1748,7 @@ function renderPayments() {
         </div>
         ${p2Btn}
       </div>
+      ${undoFooter}
     </div>`;
   }).join('');
 
@@ -1990,6 +2001,28 @@ async function submitMarkPaid() {
       await loadPayments();
     } else {
       toast('Error: ' + (res.error||''));
+    }
+  } catch(e) {
+    loading(false);
+    toast('Connection error');
+  }
+}
+
+async function undoApproval(qno, scCode) {
+  if (!qno || !scCode) return;
+  if (!confirm('Undo approval for ' + qno + '?\n\n' +
+               'The install goes back to Pending. Subcon balance, quotation rolls, ' +
+               'and the payment record are recomputed. The payment row will be deleted.')) return;
+  loading(true, 'Undoing...');
+  try {
+    const res = await jsonp({ action: 'undoApproval', quotationNo: qno, subconCode: scCode });
+    loading(false);
+    if (res && res.success) {
+      const n = Number(res.revertedRolls || 0);
+      toast('↶ Undo successful — ' + n + ' roll' + (n === 1 ? '' : 's') + ' back to pending');
+      await loadData();
+    } else {
+      toast('Cannot undo: ' + ((res && res.error) || 'unknown error'));
     }
   } catch(e) {
     loading(false);

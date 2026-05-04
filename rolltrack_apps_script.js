@@ -80,6 +80,9 @@ function doGet(e) {
       case 'recalcPayment':
         result = recalcPayment(p.quotationNo, p.subconCode);
         break;
+      case 'undoApproval':
+        result = undoApproval(p.quotationNo, p.subconCode);
+        break;
       case 'getAllSubmissions':
         result = getAllSubmissions();
         break;
@@ -537,6 +540,135 @@ function rejectSubmission(submissionId, reason) {
     return { success: true, message: 'Rejected' };
   }
   return { success: false, error: 'Submission not found: ' + submissionId };
+}
+
+// ── undoApproval ──────────────────────────────────────────────────
+// Reverts an approved install for (quotationNo, subconCode):
+//   - Refuse if the Payments row's P1 or P2 is already 'paid'.
+//   - Submissions row(s) for that pair: Status approved → pending,
+//     clear ApprovedBy / ApprovedAt. Sum the qty reverted.
+//   - SubconBalances: decrement TotalInstalled (via updateSubconBalance,
+//     which is pure-additive over qty so a negative qty just subtracts).
+//   - Quotations: decrement RollsInstalled. Demote 'completed' → 'active'
+//     if RollsInstalled drops back below estRolls.
+//   - Payments: delete the now-empty (qno, scCode) row.
+//   - Append an 'undo_approval' entry to the Log.
+//
+// Defensive: handles N>=1 approved install rows in case legacy data
+// violates the user's "1 quotation = 1 submission" rule.
+function undoApproval(quotationNo, subconCode) {
+  if (!quotationNo || !subconCode) {
+    return { success: false, error: 'Missing quotationNo or subconCode' };
+  }
+  var paySheet = getSheet('Payments');
+  if (!paySheet) return { success: false, error: 'Payments sheet not found' };
+  var payData    = paySheet.getDataRange().getValues();
+  var payHeaders = payData[0];
+  var payQIdx    = payHeaders.indexOf('QuotationNo');
+  var paySCIdx   = payHeaders.indexOf('SubconCode');
+  var payP1Idx   = payHeaders.indexOf('Payment1Status');
+  var payP2Idx   = payHeaders.indexOf('Payment2Status');
+  if (payQIdx < 0 || paySCIdx < 0 || payP1Idx < 0 || payP2Idx < 0) {
+    return { success: false, error: 'Payments sheet missing expected headers' };
+  }
+
+  var payRow = -1;
+  for (var pr = 1; pr < payData.length; pr++) {
+    if (String(payData[pr][payQIdx])  === String(quotationNo) &&
+        String(payData[pr][paySCIdx]) === String(subconCode)) {
+      payRow = pr;
+      break;
+    }
+  }
+  if (payRow < 0) {
+    return { success: false, error: 'No payment record for ' + quotationNo + ' / ' + subconCode };
+  }
+  var p1st = String(payData[payRow][payP1Idx] || '').trim().toLowerCase();
+  var p2st = String(payData[payRow][payP2Idx] || '').trim().toLowerCase();
+  if (p1st === 'paid' || p2st === 'paid') {
+    return { success: false, error: 'Payment already disbursed — cannot undo. Reverse the bank transfer first.' };
+  }
+
+  // Flip every approved install Submission for this (qno, scCode).
+  var subSheet = getSheet('Submissions');
+  if (!subSheet) return { success: false, error: 'Submissions sheet not found' };
+  var subData  = subSheet.getDataRange().getValues();
+  var subHdrs  = subData[0];
+  var sQIdx    = subHdrs.indexOf('QuotationNo');
+  var sSCIdx   = subHdrs.indexOf('SubconCode');
+  var sFTIdx   = subHdrs.indexOf('FormType');
+  var sStIdx   = subHdrs.indexOf('Status');
+  var sQtyIdx  = subHdrs.indexOf('Qty');
+  var sIdIdx   = subHdrs.indexOf('SubmissionID');
+  var sAByIdx  = subHdrs.indexOf('ApprovedBy');
+  var sAAtIdx  = subHdrs.indexOf('ApprovedAt');
+  if (sQIdx < 0 || sSCIdx < 0 || sFTIdx < 0 || sStIdx < 0 || sQtyIdx < 0) {
+    return { success: false, error: 'Submissions sheet missing expected headers' };
+  }
+
+  var revertedQty   = 0;
+  var revertedIds   = [];
+  var subconNameSeen = '';
+  for (var r = 1; r < subData.length; r++) {
+    if (String(subData[r][sQIdx])  !== String(quotationNo)) continue;
+    if (String(subData[r][sSCIdx]) !== String(subconCode))  continue;
+    if (String(subData[r][sFTIdx]).toLowerCase() !== 'install') continue;
+    if (String(subData[r][sStIdx]).trim().toLowerCase() !== 'approved') continue;
+    subSheet.getRange(r + 1, sStIdx + 1).setValue('pending');
+    if (sAByIdx >= 0) subSheet.getRange(r + 1, sAByIdx + 1).setValue('');
+    if (sAAtIdx >= 0) subSheet.getRange(r + 1, sAAtIdx + 1).setValue('');
+    revertedQty += Number(subData[r][sQtyIdx]) || 0;
+    if (sIdIdx >= 0) revertedIds.push(String(subData[r][sIdIdx]));
+    var nameIdx = subHdrs.indexOf('SubconName');
+    if (nameIdx >= 0 && !subconNameSeen) subconNameSeen = String(subData[r][nameIdx] || '');
+  }
+  if (revertedQty === 0 && !revertedIds.length) {
+    // No approved installs found, but Payments row exists — orphan. Drop it.
+    paySheet.deleteRow(payRow + 1);
+    return { success: false, error: 'No approved install submissions found; cleared orphan payment row.' };
+  }
+  SpreadsheetApp.flush();
+
+  // Decrement balances. updateSubconBalance + updateQuotationInstalled are
+  // pure-additive helpers — passing a negative qty just subtracts.
+  updateSubconBalance(String(subconCode), 'install', -revertedQty);
+  updateQuotationInstalled(String(quotationNo), -revertedQty);
+
+  // Demote Quotation status if it was auto-set to 'completed' on approval.
+  var qtSheet = getSheet('Quotations');
+  if (qtSheet) {
+    var qtData = qtSheet.getDataRange().getValues();
+    for (var qi = 1; qi < qtData.length; qi++) {
+      if (String(qtData[qi][0]).trim() !== String(quotationNo).trim()) continue;
+      var estRolls       = Number(qtData[qi][8])  || 0;  // col 9 (I) — EstRolls
+      var rollsInstalled = Number(qtData[qi][12]) || 0;  // col 13 (M) — RollsInstalled
+      var status         = String(qtData[qi][13] || '').trim().toLowerCase();  // col 14 (N) — Status
+      if (status === 'completed' && rollsInstalled < estRolls) {
+        qtSheet.getRange(qi + 1, 14).setValue('active');
+      }
+      break;
+    }
+  }
+
+  // Drop the now-empty Payments row.
+  paySheet.deleteRow(payRow + 1);
+
+  addLog({
+    type:        'undo_approval',
+    subconCode:  subconCode,
+    subconName:  subconNameSeen || (SUBCONS[subconCode] || subconCode),
+    quotationNo: quotationNo,
+    qty:         -revertedQty,
+    notes:       'reverted approval (' + revertedIds.length + ' submission' + (revertedIds.length === 1 ? '' : 's') + ')'
+  });
+
+  return {
+    success:        true,
+    revertedRolls:  revertedQty,
+    revertedCount:  revertedIds.length,
+    quotationNo:    quotationNo,
+    subconCode:     subconCode
+  };
 }
 
 // ════════════════════════════════════════════════════════════════
