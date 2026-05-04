@@ -888,6 +888,30 @@ function calculatePayment(subconCode, quotationNo, rollsInstalled) {
   };
 }
 
+// ── getFirstSubmissionAt ──────────────────────────────────────────
+// Earliest approved install submission timestamp for (quotation, subcon).
+// Used as the base for payment due-date calc so the due date stays
+// anchored to when the work was reported, not when admin clicked Approve.
+function getFirstSubmissionAt(quotationNo, subconCode) {
+  var sheet = getSheet('Submissions');
+  if (!sheet) return '';
+  var rows = sheetToObjects(sheet);
+  var earliest = null;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.QuotationNo) !== String(quotationNo)) continue;
+    if (String(r.SubconCode)  !== String(subconCode))  continue;
+    if (String(r.FormType).toLowerCase() !== 'install') continue;
+    if (String(r.Status).trim().toLowerCase() !== 'approved') continue;
+    var ts = r.Timestamp;
+    if (!ts) continue;
+    var d = (ts instanceof Date) ? ts : new Date(ts);
+    if (isNaN(d.getTime())) continue;
+    if (!earliest || d < earliest) earliest = d;
+  }
+  return earliest ? Utilities.formatDate(earliest, 'Asia/Kuala_Lumpur', "yyyy-MM-dd'T'HH:mm:ss") : '';
+}
+
 // ── calculatePaymentForQuotation ──────────────────────────────────
 // Sums qty from ALL approved install submissions for a quotation,
 // then applies tiered rate to the total.
@@ -973,8 +997,17 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     idx['SplitMode'] = headers.length;
     headers.push('SplitMode');
   }
-  var smIdx = idx['SplitMode'];
-  var qIdx  = idx['QuotationNo'];
+  // Auto-add FirstSubmissionAt header (column T) — anchors due-date calc to
+  // submission time instead of approval time.
+  if (idx['FirstSubmissionAt'] === undefined) {
+    var nextCol2 = headers.length + 1;
+    sheet.getRange(1, nextCol2).setValue('FirstSubmissionAt');
+    idx['FirstSubmissionAt'] = headers.length;
+    headers.push('FirstSubmissionAt');
+  }
+  var smIdx  = idx['SplitMode'];
+  var fsaIdx = idx['FirstSubmissionAt'];
+  var qIdx   = idx['QuotationNo'];
 
   // Check if record exists — update in place
   for (var r = 1; r < data.length; r++) {
@@ -1013,6 +1046,12 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     if (acColIdx !== undefined) sheet.getRange(r + 1, acColIdx + 1).setValue(calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]');
     if (atColIdx !== undefined) sheet.getRange(r + 1, atColIdx + 1).setValue(calc.additionalTotal || 0);
     if (writeBackMode) sheet.getRange(r + 1, smIdx + 1).setValue(splitMode);
+    // Backfill FirstSubmissionAt if missing (preserve original value if set).
+    var existingFsa = data[r][fsaIdx];
+    if (!existingFsa) {
+      var fsa = getFirstSubmissionAt(quotationNo, subconCode);
+      if (fsa) sheet.getRange(r + 1, fsaIdx + 1).setValue(fsa);
+    }
     return { success: true, updated: true, paymentID: data[r][idx['PaymentID']] };
   }
 
@@ -1051,7 +1090,8 @@ function upsertPaymentRecord(quotationNo, subconCode, calc) {
     nowStr(),          // CreatedAt
     calc.additionalCosts ? JSON.stringify(calc.additionalCosts) : '[]',  // Q  AdditionalCosts
     calc.additionalTotal || 0,  // R  AdditionalTotal
-    'split-50-50'      // S  SplitMode
+    'split-50-50',     // S  SplitMode
+    getFirstSubmissionAt(quotationNo, subconCode)  // T  FirstSubmissionAt
   ]);
   return { success: true, created: true, paymentID: paymentID };
 }
@@ -1108,10 +1148,15 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
 
   var paymentID = 'PAY-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss');
 
-  // Auto-add SplitMode header (column S) on legacy sheets so the appended row aligns.
+  // Auto-add SplitMode (S) and FirstSubmissionAt (T) headers on legacy sheets so the appended row aligns.
   var crHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
   if (crHeaders.indexOf('SplitMode') < 0) {
     sheet.getRange(1, crHeaders.length + 1).setValue('SplitMode');
+    crHeaders.push('SplitMode');
+  }
+  if (crHeaders.indexOf('FirstSubmissionAt') < 0) {
+    sheet.getRange(1, crHeaders.length + 1).setValue('FirstSubmissionAt');
+    crHeaders.push('FirstSubmissionAt');
   }
 
   sheet.appendRow([
@@ -1133,7 +1178,8 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
     nowStr(),         // CreatedAt
     '[]',             // Q  AdditionalCosts
     0,                // R  AdditionalTotal
-    'split-50-50'     // S  SplitMode
+    'split-50-50',    // S  SplitMode
+    getFirstSubmissionAt(quotationNo, subconCode)  // T  FirstSubmissionAt
   ]);
 
   return {
@@ -1144,6 +1190,36 @@ function createPaymentRecord(quotationNo, subconCode, arg3, arg4) {
     payment1:  calc.payment1,
     payment2:  calc.payment2
   };
+}
+
+// ── backfillFirstSubmissionAt ─────────────────────────────────────
+// One-shot migration: populates FirstSubmissionAt (col T) on every
+// existing Payments row using the earliest approved install submission
+// for that (QuotationNo, SubconCode). Safe to re-run — only fills empty
+// cells. Run from the Apps Script editor, no doGet exposure.
+function backfillFirstSubmissionAt() {
+  var sheet = getSheet('Payments');
+  if (!sheet) return 'Payments sheet not found';
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (headers.indexOf('FirstSubmissionAt') < 0) {
+    sheet.getRange(1, headers.length + 1).setValue('FirstSubmissionAt');
+    headers.push('FirstSubmissionAt');
+  }
+  var fsaIdx = headers.indexOf('FirstSubmissionAt');
+  var qIdx   = headers.indexOf('QuotationNo');
+  var scIdx  = headers.indexOf('SubconCode');
+  var data   = sheet.getDataRange().getValues();
+  var filled = 0;
+  for (var r = 1; r < data.length; r++) {
+    if (data[r][fsaIdx]) continue;
+    var ts = getFirstSubmissionAt(data[r][qIdx], data[r][scIdx]);
+    if (ts) {
+      sheet.getRange(r + 1, fsaIdx + 1).setValue(ts);
+      filled++;
+    }
+  }
+  Logger.log('backfillFirstSubmissionAt: filled ' + filled + ' rows.');
+  return 'Filled ' + filled + ' rows.';
 }
 
 // ════════════════════════════════════════════════════════════════

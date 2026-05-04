@@ -1645,15 +1645,17 @@ let batchPayItems = [];
 function getNextMonday(fromDate) {
   const d = new Date(fromDate);
   const day = d.getDay(); // 0=Sun 1=Mon ... 6=Sat
-  const daysUntil = day === 1 ? 7 : (8 - day) % 7;
-  d.setDate(d.getDate() + (daysUntil || 7));
+  // Monday maps to itself; other days advance to the next Monday.
+  const daysUntil = day === 1 ? 0 : (8 - day) % 7;
+  d.setDate(d.getDate() + daysUntil);
   d.setHours(0,0,0,0);
   return d;
 }
 
 function getP1DueDate(p) {
-  const created = p['CreatedAt'] || '';
-  const d = created ? parseDate(created) : null;
+  // Anchor due date to the original submission, not the approval moment.
+  const base = p['FirstSubmissionAt'] || p['CreatedAt'] || '';
+  const d = base ? parseDate(base) : null;
   return d ? getNextMonday(d) : null;
 }
 
