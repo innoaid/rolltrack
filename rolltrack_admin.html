@@ -710,12 +710,12 @@ function renderApprovals() {
     bdg.style.display = pend.length ? 'inline-flex' : 'none';
     bdg.textContent   = pend.length;
   }
-  const aaWrap = ge('approveAllWrap');
-  if (aaWrap) {
-    aaWrap.innerHTML = pend.length >= 2
-      ? `<button class="btn btn-g" style="margin-bottom:10px" onclick="approveAll()">✓ Approve All Pending (${pend.length} submissions)</button>`
-      : '';
-  }
+  // Drop selections that are no longer pending (e.g. already approved/rejected
+  // since the last render).
+  selectedApprovals.forEach(id => {
+    if (!pend.some(s => String(s.id) === String(id))) selectedApprovals.delete(id);
+  });
+  renderApprToolbar();
   if (!el) return;
   if (!pend.length) {
     el.innerHTML = `<div class="empty"><div class="empty-i">✅</div><p>No pending submissions</p></div>`;
@@ -746,6 +746,13 @@ function renderApprovals() {
       return `
       <div class="appr-card" id="appr_${s.id}">
         ${rejBanner}
+        <label style="padding:8px 13px;background:var(--s2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer">
+          <input type="checkbox" class="appr-tick" data-id="${s.id}"
+            ${selectedApprovals.has(s.id) ? 'checked' : ''}
+            onchange="toggleApprSelect('${s.id}', this.checked)"
+            style="width:18px;height:18px;cursor:pointer;accent-color:var(--green)">
+          <span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Select for batch approve</span>
+        </label>
         <div style="padding:12px 13px;display:flex;justify-content:space-between;align-items:flex-start;border-bottom:1px solid var(--border)">
           <div>
             <div style="font-size:10px;font-weight:800;color:var(--orange);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Installation Report · <span style="background:var(--orange-l);padding:2px 6px;border-radius:10px">PENDING</span></div>
@@ -805,6 +812,13 @@ function renderApprovals() {
     return `
     <div class="appr-card" id="appr_${s.id}">
       ${rejBanner}
+      <label style="padding:8px 13px;background:var(--s2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" class="appr-tick" data-id="${s.id}"
+          ${selectedApprovals.has(s.id) ? 'checked' : ''}
+          onchange="toggleApprSelect('${s.id}', this.checked)"
+          style="width:18px;height:18px;cursor:pointer;accent-color:var(--green)">
+        <span style="font-size:11px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px">Select for batch approve</span>
+      </label>
       <div class="appr-hdr">
         <div class="appr-dot ${s.formType}">${icons[s.formType]||'📋'}</div>
         <div class="appr-info">
@@ -950,6 +964,51 @@ function rLI(m) {
 // ══════════════════════════════════════
 // APPROVE / REJECT
 // ══════════════════════════════════════
+// Tick-box selection state for the Approvals tab. Survives card re-renders;
+// renderApprovals prunes IDs that are no longer pending.
+const selectedApprovals = new Set();
+
+function renderApprToolbar() {
+  const aaWrap = ge('approveAllWrap');
+  if (!aaWrap) return;
+  const pend   = D.pendingSubmissions || [];
+  const totalN = pend.length;
+  const selN   = selectedApprovals.size;
+  if (!totalN) { aaWrap.innerHTML = ''; return; }
+  const allChecked = selN > 0 && selN === totalN;
+  let html = `<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;align-items:center">
+    <label style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer">
+      <input type="checkbox" id="apprSelectAll"
+        ${allChecked ? 'checked' : ''}
+        onchange="toggleSelectAllAppr(this.checked)"
+        style="width:16px;height:16px;accent-color:var(--green);cursor:pointer">
+      Select all
+    </label>`;
+  if (selN > 0) {
+    html += `<button class="btn btn-g" onclick="approveSelected()">✓ Approve Selected (${selN})</button>`;
+  }
+  if (totalN >= 2) {
+    html += `<button class="btn btn-ghost" onclick="approveAll()">Approve All Pending (${totalN})</button>`;
+  }
+  html += `</div>`;
+  aaWrap.innerHTML = html;
+}
+
+function toggleApprSelect(id, checked) {
+  const sid = String(id);
+  if (checked) selectedApprovals.add(sid);
+  else selectedApprovals.delete(sid);
+  renderApprToolbar();
+}
+
+function toggleSelectAllAppr(checked) {
+  const pend = D.pendingSubmissions || [];
+  if (checked) pend.forEach(s => selectedApprovals.add(String(s.id)));
+  else selectedApprovals.clear();
+  document.querySelectorAll('.appr-tick').forEach(cb => { cb.checked = checked; });
+  renderApprToolbar();
+}
+
 // Read edited additional-cost amounts from the inputs on a pending card.
 // Returns null if no AC inputs exist (non-install or install with no AC).
 // Returns { edited:bool, items:[{desc,amount}], reason } otherwise.
@@ -1017,6 +1076,52 @@ async function approve(id, formType) {
     loading(false);
     toast('Connection error');
   }
+}
+
+async function approveSelected() {
+  const pend = D.pendingSubmissions || [];
+  // Snapshot the selected IDs that still correspond to a pending row, in the
+  // order they appear in the list (so the user sees a predictable progress).
+  const ids = pend
+    .map(s => String(s.id))
+    .filter(id => selectedApprovals.has(id));
+  if (!ids.length) return;
+  if (!confirm('Approve ' + ids.length + ' selected submission' + (ids.length > 1 ? 's' : '') + '?')) return;
+
+  const total = ids.length;
+  let ok = 0, fail = 0, withEdit = 0;
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    loading(true, 'Approving ' + (i + 1) + ' of ' + total + '...');
+    try {
+      // Pick up any AC edits / QC notes still in the DOM for this card —
+      // mirrors the per-card approve() flow so batch-approving doesn't
+      // silently drop adjustments the admin already typed in.
+      const collected = collectEditedAC(id);
+      const qcInput   = ge('qcn_' + id);
+      const qcNotes   = qcInput ? qcInput.value.trim() : '';
+      let params;
+      if (collected && collected.edited) {
+        params = {
+          action:          'approveSubmissionWithEdit',
+          submissionId:    id,
+          additionalCosts: JSON.stringify(collected.items)
+        };
+        if (collected.reason) params.editReason = collected.reason;
+        withEdit++;
+      } else {
+        params = { action: 'approveSubmission', submissionId: id };
+      }
+      if (qcNotes) params.qcNotes = qcNotes;
+      const res = await jsonp(params);
+      if (res && res.success) ok++;
+      else fail++;
+    } catch(e) { fail++; }
+  }
+  loading(false);
+  selectedApprovals.clear();
+  toast('✅ ' + ok + ' approved' + (withEdit ? ' (' + withEdit + ' with adjustment)' : '') + (fail ? ', ' + fail + ' failed' : ''));
+  await loadData();
 }
 
 async function approveAll() {
