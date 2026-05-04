@@ -2176,7 +2176,7 @@ function generateReport() {
   const _now    = new Date();
   const _today  = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
   const _nextMon = getNextMonday(_today);
-  const wkOver = [], wkToday = [], wkSoon = [];
+  const wkOver = [], wkToday = [];
   data.forEach(p => {
     const subName = p['SubconName'] || NAME_BY_CODE[p['SubconCode']] || p['SubconCode'] || '?';
     const qno  = p['QuotationNo'] || '';
@@ -2189,25 +2189,20 @@ function generateReport() {
       if (!amt) return;
       const due = n === 1 ? getP1DueDate(p) : getP2DueDate(p);
       if (!due) return;
-      const item = { subName, qno, proj, pNum: n, amt, due };
+      // Only payable items go in this report block. Future-due items (today <
+      // due) are intentionally excluded — they're not yet payable, so they
+      // shouldn't pad the printed schedule.
       if (due < _today) {
-        item.daysOverdue = Math.ceil((_today - due) / 86400000);
-        wkOver.push(item);
+        wkOver.push({ subName, qno, proj, pNum: n, amt, due, daysOverdue: Math.ceil((_today - due) / 86400000) });
       } else if (due.getTime() === _today.getTime()) {
-        wkToday.push(item);
-      } else if (due <= _nextMon) {
-        wkSoon.push(item);
+        wkToday.push({ subName, qno, proj, pNum: n, amt, due });
       }
     });
   });
   const wkOverTot  = wkOver.reduce((s, i) => s + i.amt, 0);
   const wkTodayTot = wkToday.reduce((s, i) => s + i.amt, 0);
-  const wkSoonTot  = wkSoon.reduce((s, i) => s + i.amt, 0);
-  // Total = payable now (overdue + due today). Coming Up is informational
-  // only — those items aren't actually payable yet, so they don't add into
-  // the week's total.
   const wkTotal    = wkOverTot + wkTodayTot;
-  const wkHas      = wkOver.length || wkToday.length || wkSoon.length;
+  const wkHas      = wkOver.length || wkToday.length;
 
   const renderWkRow = (i, statusHtml) => `<tr>
     <td>${statusHtml}</td>
@@ -2219,7 +2214,7 @@ function generateReport() {
     <td class="c-num">${fmtDate(i.due)}</td>
   </tr>`;
 
-  const weeklyBlock = !wkHas ? '' : `<h3 class="grp">This Week's Payments — week ending ${fmtDate(_nextMon)}</h3>
+  const weeklyBlock = !wkHas ? '' : `<h3 class="grp">Payable Now — week of ${fmtDate(_nextMon)}</h3>
 <table>
   <thead>
     <tr>
@@ -2235,10 +2230,8 @@ function generateReport() {
   <tbody>
     ${wkOver.map(i => renderWkRow(i, `<span style="color:#c01818;font-weight:700">OVERDUE ${i.daysOverdue}d</span>`)).join('')}
     ${wkToday.map(i => renderWkRow(i, `<span style="color:#b06000;font-weight:700">DUE TODAY</span>`)).join('')}
-    ${wkSoon.map(i => renderWkRow(i, `<span style="color:#666">COMING UP</span>`)).join('')}
     <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#c01818">Subtotal — Overdue (${wkOver.length})</td><td class="c-num" style="font-style:italic;color:#c01818">RM ${fmtN(wkOverTot)}</td><td></td></tr>
     <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#b06000">Subtotal — Due Today (${wkToday.length})</td><td class="c-num" style="font-style:italic;color:#b06000">RM ${fmtN(wkTodayTot)}</td><td></td></tr>
-    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#666">Coming Up (${wkSoon.length}) — not yet payable</td><td class="c-num" style="font-style:italic;color:#666">RM ${fmtN(wkSoonTot)}</td><td></td></tr>
     <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL PAYABLE NOW (Overdue + Due Today)</td><td class="c-num">RM ${fmtN(wkTotal)}</td><td></td></tr>
   </tbody>
 </table>`;
