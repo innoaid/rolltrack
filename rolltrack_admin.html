@@ -2111,27 +2111,12 @@ function generateReport() {
   // Build a complete table (header + body rows + totals row) for a record set
   function renderTable(list) {
     let sumRolls = 0, sumAmt = 0, sumP1 = 0, sumP2 = 0;
-    let futureP1 = 0, futureP2 = 0; // unpaid AND not yet due
     list.forEach(p => {
       sumRolls += Number(p['RollsInstalled'] || 0);
       sumAmt   += Number(p['TotalAmount']    || 0);
       sumP1    += Number(p['Payment1Amount'] || 0);
       sumP2    += Number(p['Payment2Amount'] || 0);
-
-      const p1st = p['Payment1Status'] || 'unpaid';
-      const p2st = p['Payment2Status'] || 'unpaid';
-      if (p1st !== 'paid' && !isPayable(getP1DueDate(p))) {
-        futureP1 += Number(p['Payment1Amount'] || 0);
-      }
-      if (p2st !== 'paid') {
-        // P2 is "not yet due" if P1 unpaid (waiting on P1) OR if P2's own
-        // due date is in the future.
-        if (p1st !== 'paid' || !isPayable(getP2DueDate(p))) {
-          futureP2 += Number(p['Payment2Amount'] || 0);
-        }
-      }
     });
-    const hasFuture = futureP1 > 0 || futureP2 > 0;
     return `<table>
       <thead>
         <tr>
@@ -2147,7 +2132,7 @@ function generateReport() {
       </thead>
       <tbody>
         ${list.map(renderRow).join('')}
-        <tr class="total-row">
+        <tr style="border-top:2px solid #111;background:#f0f0f0">
           <td colspan="3" style="text-align:right">TOTAL</td>
           <td class="c-num">${sumRolls}</td>
           <td></td>
@@ -2155,84 +2140,77 @@ function generateReport() {
           <td class="c-num">RM ${fmtN(sumP1)}</td>
           <td class="c-num">RM ${fmtN(sumP2)}</td>
         </tr>
-        ${hasFuture ? `<tr>
-          <td colspan="6" style="text-align:right;font-style:italic;color:#888;font-size:11px">of which not yet due</td>
-          <td class="c-num" style="color:#888;font-style:italic">RM ${fmtN(futureP1)}</td>
-          <td class="c-num" style="color:#888;font-style:italic">RM ${fmtN(futureP2)}</td>
-        </tr>
-        <tr>
-          <td colspan="6" style="text-align:right;font-weight:700;font-size:11px">payable now</td>
-          <td class="c-num" style="font-weight:700">RM ${fmtN(sumP1 - futureP1)}</td>
-          <td class="c-num" style="font-weight:700">RM ${fmtN(sumP2 - futureP2)}</td>
-        </tr>` : ''}
       </tbody>
     </table>`;
   }
 
-  // ── This Week's Payments — line-item breakdown of what's due ──
-  // Same bucket logic as the in-page Weekly Summary, trimmed so "Coming Up"
-  // means today < due ≤ next Monday (this week's window, not the full 30-day
-  // upcoming horizon).
-  const _now    = new Date();
-  const _today  = new Date(_now.getFullYear(), _now.getMonth(), _now.getDate());
-  const _nextMon = getNextMonday(_today);
-  const wkOver = [], wkToday = [];
+  // ── Recent Mark Paid — line items from the latest paid date ──
+  // Surfaces every P1/P2 disbursement whose Payment*Date equals the most
+  // recent paid date in the filtered set. Use to tally against bank.
+  const paidRows = [];
   data.forEach(p => {
     const subName = p['SubconName'] || NAME_BY_CODE[p['SubconCode']] || p['SubconCode'] || '?';
-    const qno  = p['QuotationNo'] || '';
-    const proj = (qtMap[qno] && qtMap[qno].projectName) || '';
-    [1, 2].forEach(n => {
-      const st = p['Payment' + n + 'Status'] || 'unpaid';
-      if (st === 'paid') return;
-      if (n === 2 && (p['Payment1Status'] || 'unpaid') !== 'paid') return;
-      const amt = Number(p['Payment' + n + 'Amount'] || 0);
-      if (!amt) return;
-      const due = n === 1 ? getP1DueDate(p) : getP2DueDate(p);
-      if (!due) return;
-      // Only payable items go in this report block. Future-due items (today <
-      // due) are intentionally excluded — they're not yet payable, so they
-      // shouldn't pad the printed schedule.
-      if (due < _today) {
-        wkOver.push({ subName, qno, proj, pNum: n, amt, due, daysOverdue: Math.ceil((_today - due) / 86400000) });
-      } else if (due.getTime() === _today.getTime()) {
-        wkToday.push({ subName, qno, proj, pNum: n, amt, due });
-      }
-    });
+    const qno      = p['QuotationNo'] || '';
+    const customer = (qtMap[qno] && qtMap[qno].clientName) || '';
+    if (String(p['Payment1Status'] || '').toLowerCase() === 'paid' && p['Payment1Date']) {
+      const d = parseDate(p['Payment1Date']);
+      if (d) paidRows.push({ date: d, subName, qno, customer, pNum: 1,
+                             amt: Number(p['Payment1Amount'] || 0),
+                             ref: p['Payment1Reference'] || '' });
+    }
+    if (String(p['Payment2Status'] || '').toLowerCase() === 'paid' && p['Payment2Date']) {
+      const d = parseDate(p['Payment2Date']);
+      if (d) paidRows.push({ date: d, subName, qno, customer, pNum: 2,
+                             amt: Number(p['Payment2Amount'] || 0),
+                             ref: p['Payment2Reference'] || '' });
+    }
   });
-  const wkOverTot  = wkOver.reduce((s, i) => s + i.amt, 0);
-  const wkTodayTot = wkToday.reduce((s, i) => s + i.amt, 0);
-  const wkTotal    = wkOverTot + wkTodayTot;
-  const wkHas      = wkOver.length || wkToday.length;
 
-  const renderWkRow = (i, statusHtml) => `<tr>
-    <td>${statusHtml}</td>
-    <td>${i.subName}</td>
-    <td class="c-qno">${i.qno}</td>
-    <td>${i.proj || '—'}</td>
-    <td class="c-num">P${i.pNum}</td>
-    <td class="c-num c-amt">RM ${fmtN(i.amt)}</td>
-    <td class="c-num">${fmtDate(i.due)}</td>
+  let recentRows = [];
+  let recentDate = null;
+  if (paidRows.length) {
+    const dayKey = d => d.getFullYear() + '-' +
+                        String(d.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(d.getDate()).padStart(2, '0');
+    let maxKey = '';
+    paidRows.forEach(r => { const k = dayKey(r.date); if (k > maxKey) maxKey = k; });
+    recentRows = paidRows.filter(r => dayKey(r.date) === maxKey);
+    recentRows.sort((a, b) =>
+      (a.subName || '').localeCompare(b.subName || '') ||
+      (a.qno || '').localeCompare(b.qno || '') ||
+      a.pNum - b.pNum
+    );
+    recentDate = recentRows[0].date;
+  }
+  const recentTotal = recentRows.reduce((s, r) => s + r.amt, 0);
+
+  const recentRow = r => `<tr>
+    <td>${fmtDate(r.date)}</td>
+    <td>${r.subName}</td>
+    <td class="c-qno">${r.qno}</td>
+    <td>${r.customer || '—'}</td>
+    <td class="c-num">P${r.pNum}</td>
+    <td class="c-num c-amt">RM ${fmtN(r.amt)}</td>
+    <td>${r.ref || '—'}</td>
   </tr>`;
 
-  const weeklyBlock = !wkHas ? '' : `<h3 class="grp">Payable Now — week of ${fmtDate(_nextMon)}</h3>
+  const weeklyBlock = !recentRows.length ? '' :
+    `<h3 class="grp">Recent Mark Paid — ${fmtDate(recentDate)} (${recentRows.length} payment${recentRows.length === 1 ? '' : 's'})</h3>
 <table>
   <thead>
     <tr>
-      <th>Status</th>
+      <th>Date</th>
       <th>Subcon</th>
       <th>Quotation</th>
-      <th>Project</th>
+      <th>Customer</th>
       <th class="c-num">Pmt</th>
       <th class="c-num">Amount</th>
-      <th class="c-num">Due</th>
+      <th>Reference</th>
     </tr>
   </thead>
   <tbody>
-    ${wkOver.map(i => renderWkRow(i, `<span style="color:#c01818;font-weight:700">OVERDUE ${i.daysOverdue}d</span>`)).join('')}
-    ${wkToday.map(i => renderWkRow(i, `<span style="color:#b06000;font-weight:700">DUE TODAY</span>`)).join('')}
-    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#c01818">Subtotal — Overdue (${wkOver.length})</td><td class="c-num" style="font-style:italic;color:#c01818">RM ${fmtN(wkOverTot)}</td><td></td></tr>
-    <tr><td colspan="5" style="text-align:right;font-style:italic;font-size:11px;color:#b06000">Subtotal — Due Today (${wkToday.length})</td><td class="c-num" style="font-style:italic;color:#b06000">RM ${fmtN(wkTodayTot)}</td><td></td></tr>
-    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL PAYABLE NOW (Overdue + Due Today)</td><td class="c-num">RM ${fmtN(wkTotal)}</td><td></td></tr>
+    ${recentRows.map(recentRow).join('')}
+    <tr class="total-row"><td colspan="5" style="text-align:right">TOTAL MARKED PAID</td><td class="c-num">RM ${fmtN(recentTotal)}</td><td></td></tr>
   </tbody>
 </table>`;
 
