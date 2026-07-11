@@ -1239,32 +1239,35 @@ function calcQt() {
 
 function uploadPdfQt() { ge('pdfFileInput').click(); }
 
-async function callClaudeWithRetry(payload, apiKey, maxRetries) {
+async function callOpenAIWithRetry(payload, apiKey, maxRetries) {
   maxRetries = maxRetries || 3;
   for (var attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
+      var response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
+          'Authorization': 'Bearer ' + apiKey
         },
         body: JSON.stringify(payload)
       });
       var data = await response.json();
-      if (data.error && data.error.type === 'overloaded_error') {
+      var errCode = data.error ? (data.error.code || data.error.type || '') : '';
+      // Rate limited → back off and retry (HTTP 429 / rate_limit_exceeded)
+      if (response.status === 429 || errCode === 'rate_limit_exceeded') {
         if (attempt < maxRetries) {
           var waitSecs = attempt * 3;
           ge('spin-tx').textContent = 'API busy, retrying in ' + waitSecs + 's... (attempt ' + attempt + '/' + maxRetries + ')';
           await new Promise(function(r) { setTimeout(r, waitSecs * 1000); });
           continue;
         }
-        throw new Error('API overloaded after ' + maxRetries + ' attempts. Please try again in a minute.');
+        throw new Error('OpenAI rate limited after ' + maxRetries + ' attempts. Please try again in a minute.');
       }
       if (data.error) {
-        if (data.error.type === 'authentication_error') localStorage.removeItem('claude_api_key');
+        if (response.status === 401 || errCode === 'invalid_api_key') {
+          localStorage.removeItem('openai_api_key');
+          throw new Error('authentication failed: ' + (data.error.message || 'invalid API key'));
+        }
         throw new Error(data.error.message || 'API error');
       }
       return data;
@@ -1282,33 +1285,34 @@ async function handlePdfFile(event) {
   const file = event.target.files[0];
   if (!file) return;
   event.target.value = '';
-  let apiKey = localStorage.getItem('claude_api_key');
+  let apiKey = localStorage.getItem('openai_api_key');
   if (!apiKey) {
-    apiKey = prompt('Enter your Claude API key (stored locally):');
+    apiKey = prompt('Enter your OpenAI API key (stored locally):');
     if (!apiKey) return;
-    localStorage.setItem('claude_api_key', apiKey);
+    localStorage.setItem('openai_api_key', apiKey);
   }
   loading(true, 'Reading PDF with AI...');
   try {
-    const base64PdfData = await new Promise((resolve, reject) => {
+    const pdfDataUri = await new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onload = () => resolve(reader.result);
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
-    ge('spin-tx').textContent = 'Sending to Claude...';
-    const data = await callClaudeWithRetry({
-      model: 'claude-sonnet-4-6',
+    ge('spin-tx').textContent = 'Sending to OpenAI...';
+    const data = await callOpenAIWithRetry({
+      model: 'gpt-4o',
       max_tokens: 1000,
+      response_format: { type: 'json_object' },
       messages: [{
         role: 'user',
         content: [
-          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64PdfData } },
+          { type: 'file', file: { filename: file.name || 'quotation.pdf', file_data: pdfDataUri } },
           { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD.' }
         ]
       }]
     }, apiKey);
-    const text = data.content[0].text;
+    const text = data.choices[0].message.content;
     const clean = text.replace(/```json|```/g, '').trim();
     const extracted = JSON.parse(clean);
     loading(false);
