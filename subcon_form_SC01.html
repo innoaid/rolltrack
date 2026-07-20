@@ -808,7 +808,13 @@ async function submitReturn() {
 }
 
 // ── SEND VIA JSONP ────────────────────────────────────
+let isSubmitting = false;
 async function send(payload, type) {
+  if (isSubmitting) return;              // block double-submit / re-tap
+  isSubmitting = true;
+  const _btnId = type==='pickup'?'pu_submit':type==='install'?'in_submit':'re_submit';
+  const _btn = document.getElementById(_btnId);
+  if (_btn) _btn.disabled = true;
   showLoading('Sending... / Menghantar...');
   try {
     const d = await jsonp({
@@ -833,6 +839,9 @@ async function send(payload, type) {
   } catch(e) {
     hideLoading();
     showToast(navigator.onLine?'Connection error. Try again.':'No internet / Tiada internet.');
+  } finally {
+    isSubmitting = false;
+    if (_btn) _btn.disabled = false;     // re-enable for a genuine retry
   }
 }
 

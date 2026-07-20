@@ -333,6 +333,32 @@ function submitSubconForm(p) {
   var sheet = getSheet('Submissions');
   if (!sheet) return { success: false, error: 'Submissions sheet not found' };
 
+  // Dedup guard: ignore an identical pending row created moments ago.
+  // Covers double-taps and the JSONP timeout-retry case where the first
+  // append already succeeded server-side but the callback never reached the
+  // phone, so the subcon re-submits. Match on subcon + form + quotation + qty
+  // among still-pending rows, inside a 5-minute window so a genuine later
+  // resubmission is never blocked. (ActivityDate is intentionally excluded —
+  // Sheets may coerce it to a Date and break string comparison.)
+  var existing = sheet.getDataRange().getValues();
+  var eIdx = {};
+  existing[0].forEach(function(h, i) { eIdx[h] = i; });
+  var nowMs = new Date().getTime();
+  for (var er = 1; er < existing.length; er++) {
+    var erow = existing[er];
+    if (String(erow[eIdx['Status']]).toLowerCase() !== 'pending') continue;
+    if (String(erow[eIdx['SubconCode']])  !== String(p.subconCode  || '')) continue;
+    if (String(erow[eIdx['FormType']])    !== String(p.formType    || '')) continue;
+    if (String(erow[eIdx['QuotationNo']]) !== String(p.quotationNo || '')) continue;
+    if (String(erow[eIdx['Qty']])         !== String(Number(p.qty) || 0))  continue;
+    var ets = erow[eIdx['Timestamp']];
+    var etsMs = (ets instanceof Date) ? ets.getTime() : new Date(ets).getTime();
+    if (!isNaN(etsMs) && (nowMs - etsMs) < 5 * 60 * 1000) {
+      // Same pending submission within 5 minutes → treat as the same one.
+      return { success: true, submissionId: String(erow[eIdx['SubmissionID']]), duplicate: true };
+    }
+  }
+
   var subId = 'SUB-' + Utilities.formatDate(new Date(), 'Asia/Kuala_Lumpur', 'yyyyMMddHHmmss') +
               '-' + Math.floor(Math.random() * 1000).toString().padStart(3, '0');
 
