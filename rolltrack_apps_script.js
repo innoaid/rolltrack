@@ -5,7 +5,7 @@
 
 var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
 
-var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel' };
+var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel', 'SC05': 'Team Attiq', 'SC06': 'Team Noman' };
 
 // ── Helpers ──────────────────────────────────────────────────────
 function getSpreadsheet() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
@@ -1420,6 +1420,12 @@ function setupCredentials() {
     sheet.appendRow(['SC02', 'Md Shahazan', 'subcon', '', '1234', true]);
     sheet.appendRow(['SC03', 'Md Mohiuddin', 'subcon', '', '1234', true]);
     sheet.appendRow(['SC04', 'Md Foysel', 'subcon', '', '1234', true]);
+    sheet.appendRow(['SC05', 'Team Attiq', 'subcon', '', '0000', true]);
+    sheet.appendRow(['SC06', 'Team Noman', 'subcon', '', '1987', true]);
+    // Force PIN column (E) to plain text so a leading-zero PIN like "0000"
+    // isn't stored as the number 0 (which would never match at login).
+    sheet.getRange(2, 5, sheet.getLastRow() - 1, 1).setNumberFormat('@');
+    sheet.getRange(6, 5).setValue('0000'); // re-assert SC05 PIN as text
     Logger.log('Credentials sheet created with default users');
   } else {
     Logger.log('Credentials sheet already has data (' + existing.length + ' rows)');
@@ -1438,12 +1444,73 @@ function setupAllSubcons() {
     ['SC01','Md Atik',0,0,0,''],
     ['SC02','Md Shahazan',0,0,0,''],
     ['SC03','Md Mohiuddin',0,0,0,''],
-    ['SC04','Md Foysel',0,0,0,'']
+    ['SC04','Md Foysel',0,0,0,''],
+    ['SC05','Team Attiq',0,0,0,''],
+    ['SC06','Team Noman',0,0,0,'']
   ];
   subcons.forEach(function(s) {
     if (existing.indexOf(s[0]) === -1) sh.appendRow(s);
   });
   Logger.log('setupAllSubcons complete');
+}
+
+// ════════════════════════════════════════════════════════════════
+// One-shot: add SC05 (Team Attiq) + SC06 (Team Noman) to a LIVE sheet.
+// Append-only and idempotent — safe to run without wiping existing rates
+// or credentials. Run once from the Apps Script editor after pasting.
+// ════════════════════════════════════════════════════════════════
+function addSubcons0506() {
+  var ss = getSpreadsheet();
+  var added = [];
+
+  // Rows to add, per subcon.
+  var newSubcons = [
+    {
+      code: 'SC05', name: 'Team Attiq', pin: '0000',
+      // 1-5 → 190, 6-10 → 160, 11+ → 140
+      rate: ['SC05','Team Attiq',5,190,6,10,160,140,'']
+    },
+    {
+      code: 'SC06', name: 'Team Noman', pin: '1987',
+      // 1-4 → 200, 5-9 → 170, 10+ → 150
+      rate: ['SC06','Team Noman',4,200,5,9,170,150,'']
+    }
+  ];
+
+  // ── SubconRates ──
+  var rateSh = ss.getSheetByName('SubconRates');
+  if (!rateSh) { setupAllSubconRates(); rateSh = ss.getSheetByName('SubconRates'); }
+  var haveRate = rateSh.getDataRange().getValues().map(function(r){ return String(r[0]); });
+  newSubcons.forEach(function(s) {
+    if (haveRate.indexOf(s.code) === -1) { rateSh.appendRow(s.rate); added.push(s.code + ' rate'); }
+  });
+
+  // ── Credentials (PIN stored as TEXT to preserve leading zeros) ──
+  var credSh = ss.getSheetByName('Credentials');
+  if (!credSh) { setupCredentials(); credSh = ss.getSheetByName('Credentials'); }
+  var haveCred = credSh.getDataRange().getValues().map(function(r){ return String(r[0]).toUpperCase(); });
+  newSubcons.forEach(function(s) {
+    if (haveCred.indexOf(s.code) === -1) {
+      credSh.appendRow([s.code, s.name, 'subcon', '', s.pin, true]);
+      var pinCell = credSh.getRange(credSh.getLastRow(), 5); // col E = PIN
+      pinCell.setNumberFormat('@');
+      pinCell.setValue(s.pin);
+      added.push(s.code + ' login');
+    }
+  });
+
+  // ── SubconBalances (also auto-created on first approval, seeded here too) ──
+  var balSh = ss.getSheetByName('SubconBalances');
+  if (balSh) {
+    var haveBal = balSh.getDataRange().getValues().map(function(r){ return String(r[0]); });
+    newSubcons.forEach(function(s) {
+      if (haveBal.indexOf(s.code) === -1) { balSh.appendRow([s.code, s.name, 0, 0, 0, '']); added.push(s.code + ' balance'); }
+    });
+  }
+
+  var msg = added.length ? 'Added: ' + added.join(', ') : 'Nothing to add — SC05/SC06 already present.';
+  Logger.log(msg);
+  return msg;
 }
 
 function setupAllSubconRates() {
@@ -1473,6 +1540,10 @@ function setupAllSubconRates() {
   sh.appendRow(['SC02','Md Shahazan',4,200,5,9,170,150,'']);
   sh.appendRow(['SC03','Md Mohiuddin',4,200,5,9,170,150,'']);
   sh.appendRow(['SC04','Md Foysel',0,0,0,0,0,0,sc04Rates]);
+  // SC05 Team Attiq: 1-5 → 190, 6-10 → 160, 11+ → 140
+  sh.appendRow(['SC05','Team Attiq',5,190,6,10,160,140,'']);
+  // SC06 Team Noman: 1-4 → 200, 5-9 → 170, 10+ → 150
+  sh.appendRow(['SC06','Team Noman',4,200,5,9,170,150,'']);
 
   Logger.log('setupAllSubconRates complete');
 }
