@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f1923">
+<title>RollTrack Pro — Pending Review</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{--bg:#0f1923;--card:#162130;--card2:#1c2b3a;--border:#1e3248;--ink:#e8f0f8;--muted:#4a6480;--teal:#00d4aa;--teal-l:rgba(0,212,170,.12);--amber:#ffb020;--amber-l:rgba(255,176,32,.12);--blue:#3d9bff;--blue-l:rgba(61,155,255,.12);--red:#ff4f4f}
+html,body{min-height:100%;background:var(--bg);color:var(--ink);font-family:'Nunito',sans-serif;overflow-x:hidden;max-width:480px;margin:0 auto}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(15,25,35,.94);backdrop-filter:blur(8px);border-bottom:1.5px solid var(--border);padding:14px 18px;display:flex;align-items:center;gap:12px}
+.tb-logo{width:36px;height:36px;object-fit:contain;border-radius:8px;background:#0f1923;padding:4px;flex-shrink:0}
+.tb-info{flex:1;min-width:0}
+.tb-brand{font-family:'Bebas Neue',sans-serif;font-size:20px;letter-spacing:.5px;color:var(--teal);line-height:1}
+.tb-sub{font-size:11px;color:var(--muted);font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-btn{background:var(--card2);border:1.5px solid var(--border);border-radius:9px;color:var(--ink);font-family:'Nunito',sans-serif;font-size:12px;font-weight:800;padding:8px 11px;cursor:pointer;flex-shrink:0;transition:all .15s}
+.tb-btn:active{transform:scale(.95)}
+.tb-btn.ghost{background:transparent;color:var(--muted)}
+.wrap{padding:16px 16px 40px}
+.scope-note{font-size:12px;color:var(--muted);font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.scope-pill{display:inline-block;background:var(--teal-l);color:var(--teal);border-radius:6px;padding:2px 8px;font-size:11px;font-weight:800;letter-spacing:.3px}
+.count-line{font-size:13px;font-weight:800;color:var(--ink);margin-bottom:12px}
+.card{background:var(--card);border:1.5px solid var(--border);border-radius:14px;padding:15px 16px;margin-bottom:12px}
+.card-top{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.badge{font-size:11px;font-weight:800;letter-spacing:.4px;border-radius:6px;padding:3px 9px;text-transform:uppercase}
+.b-subcon{background:var(--blue-l);color:var(--blue)}
+.b-install{background:var(--teal-l);color:var(--teal)}
+.b-pickup{background:var(--amber-l);color:var(--amber)}
+.b-return{background:rgba(160,120,255,.14);color:#a984ff}
+.b-other{background:rgba(120,140,160,.14);color:#8fa6bd}
+.card-time{margin-left:auto;font-size:11px;color:var(--muted);font-weight:700}
+.row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;font-size:14px;border-top:1px solid rgba(30,50,72,.5)}
+.row:first-of-type{border-top:none}
+.row .k{color:var(--muted);font-weight:700;flex-shrink:0}
+.row .v{color:var(--ink);font-weight:800;text-align:right;word-break:break-word}
+.qty-big{color:var(--teal)}
+.notes{margin-top:10px;background:var(--card2);border-radius:9px;padding:9px 11px;font-size:13px;font-weight:600;color:#cdd9e6;white-space:pre-wrap;word-break:break-word}
+.ac-wrap{margin-top:10px}
+.ac-title{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.ac-item{display:flex;justify-content:space-between;font-size:13px;font-weight:700;color:#cdd9e6;padding:2px 0}
+.ac-total{display:flex;justify-content:space-between;font-size:13px;font-weight:800;color:var(--amber);border-top:1px dashed var(--border);margin-top:4px;padding-top:5px}
+.photo-link{display:inline-block;margin-top:10px;font-size:12px;font-weight:800;color:var(--teal);text-decoration:none}
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .big{font-size:44px;margin-bottom:12px}
+.empty .t1{font-size:15px;font-weight:800;color:var(--ink);margin-bottom:6px}
+.empty .t2{font-size:13px;font-weight:600}
+.loading{display:none;align-items:center;justify-content:center;gap:10px;padding:50px 0}
+.loading.show{display:flex}
+.spinner{width:22px;height:22px;border:2.5px solid var(--border);border-top-color:var(--teal);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-size:13px;color:var(--muted);font-weight:700}
+.err{display:none;background:rgba(255,79,79,.1);border:1.5px solid rgba(255,79,79,.3);color:#ff8a8a;border-radius:10px;padding:12px 14px;font-size:13px;font-weight:700;text-align:center;margin-top:10px}
+.err.show{display:block}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <img src="logo.png" alt="RollTrack" class="tb-logo">
+  <div class="tb-info">
+    <div class="tb-brand">RollTrack Pro</div>
+    <div class="tb-sub" id="userLine">Pending Review</div>
+  </div>
+  <button class="tb-btn" id="refreshBtn" onclick="load()">↻ Refresh</button>
+  <button class="tb-btn ghost" onclick="logout()">Log out</button>
+</div>
+
+<div class="wrap">
+  <div class="scope-note">
+    <span>Read-only view of pending submissions from</span>
+    <span class="scope-pill" id="scopePill">—</span>
+  </div>
+
+  <div class="count-line" id="countLine" style="display:none"></div>
+
+  <div class="loading show" id="loadingEl">
+    <div class="spinner"></div>
+    <div class="loading-txt">Loading pending submissions...</div>
+  </div>
+
+  <div class="err" id="errEl"></div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbzUlf76a-FfkIIKwrjFnbxoyC4i0Ick2f40IzzzvbP2bhnRu2xE0O_F09xzmTx08Mud7Q/exec';
+const SESSION_KEY = 'rolltrack_login_session';
+
+// ── Session gate ──────────────────────────────────────────────
+let SESSION = null;
+(function() {
+  try {
+    var s = JSON.parse(localStorage.getItem(SESSION_KEY) || '{}');
+    if (s.userCode && s.timestamp && (Date.now() - s.timestamp < 12*60*60*1000)) {
+      SESSION = s;
+    }
+  } catch(e) {}
+  if (!SESSION) { window.location.href = 'login.html'; }
+})();
+
+function logout() {
+  try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+  window.location.href = 'login.html';
+}
+
+// ── JSONP ─────────────────────────────────────────────────────
+function jsonp(params) {
+  return new Promise(function(resolve, reject) {
+    var cb = 'cb_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+    var to = setTimeout(function() { cleanup(); reject(new Error('timeout')); }, 20000);
+    window[cb] = function(data) { cleanup(); resolve(data); };
+    function cleanup() {
+      clearTimeout(to); delete window[cb];
+      var el = document.getElementById('jp_' + cb); if (el) el.remove();
+    }
+    params.callback = cb;
+    var qs = Object.keys(params).map(function(k){ return encodeURIComponent(k)+'='+encodeURIComponent(params[k]); }).join('&');
+    var sc = document.createElement('script');
+    sc.id = 'jp_' + cb;
+    sc.src = API + '?' + qs;
+    sc.onerror = function() { cleanup(); reject(new Error('network')); };
+    document.head.appendChild(sc);
+  });
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtDateTime(ts) {
+  if (!ts) return '';
+  var d = new Date(ts);
+  if (isNaN(d.getTime())) return String(ts).slice(0,16).replace('T',' ');
+  try {
+    return d.toLocaleString('en-MY', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit', hour12:true });
+  } catch(e) {
+    return d.toISOString().slice(0,16).replace('T',' ');
+  }
+}
+function fmtDate(s) {
+  if (!s) return '—';
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return String(s).slice(0,10);
+  try { return d.toLocaleDateString('en-MY', { day:'2-digit', month:'short', year:'numeric' }); }
+  catch(e) { return String(s).slice(0,10); }
+}
+function fmtRM(n) { return 'RM ' + (Number(n)||0).toFixed(2); }
+function ftBadge(ft) {
+  var t = String(ft||'').toLowerCase();
+  if (t === 'install') return 'b-install';
+  if (t === 'pickup')  return 'b-pickup';
+  if (t === 'return' || t === 'returned') return 'b-return';
+  return 'b-other';
+}
+
+// ── Render ────────────────────────────────────────────────────
+function cardHtml(s) {
+  var ftClass = ftBadge(s.formType);
+  var acRows = '';
+  var ac = Array.isArray(s.additionalCosts) ? s.additionalCosts : [];
+  if (ac.length) {
+    var total = 0;
+    acRows += '<div class="ac-wrap"><div class="ac-title">Additional costs</div>';
+    ac.forEach(function(c) {
+      var amt = Number(c.amount) || 0; total += amt;
+      acRows += '<div class="ac-item"><span>' + esc(c.desc || c.label || c.name || 'Item') + '</span><span>' + fmtRM(amt) + '</span></div>';
+    });
+    acRows += '<div class="ac-total"><span>Total</span><span>' + fmtRM(total) + '</span></div></div>';
+  }
+
+  var photo = '';
+  if (s.photoURL && /^https?:|^data:image/i.test(String(s.photoURL))) {
+    photo = '<a class="photo-link" href="' + esc(s.photoURL) + '" target="_blank" rel="noopener">📷 View photo</a>';
+  }
+
+  var quotRow = s.quotationNo
+    ? '<div class="row"><span class="k">Quotation</span><span class="v">' + esc(s.quotationNo) + '</span></div>' : '';
+  var puRow = (Number(s.puSealant) > 0)
+    ? '<div class="row"><span class="k">PU sealant</span><span class="v">' + esc(s.puSealant) + '</span></div>' : '';
+  var notes = s.notes
+    ? '<div class="notes">' + esc(s.notes) + '</div>' : '';
+
+  return '' +
+    '<div class="card">' +
+      '<div class="card-top">' +
+        '<span class="badge b-subcon">' + esc(s.subconCode) + ' · ' + esc(s.subconName) + '</span>' +
+        '<span class="badge ' + ftClass + '">' + esc(s.formType || 'form') + '</span>' +
+        '<span class="card-time">' + esc(fmtDateTime(s.timestamp)) + '</span>' +
+      '</div>' +
+      quotRow +
+      '<div class="row"><span class="k">Qty (rolls)</span><span class="v qty-big">' + (Number(s.qty)||0) + '</span></div>' +
+      '<div class="row"><span class="k">Activity date</span><span class="v">' + esc(fmtDate(s.date)) + '</span></div>' +
+      puRow +
+      notes +
+      acRows +
+      photo +
+    '</div>';
+}
+
+function show(el) { document.getElementById(el).classList.add('show'); }
+function hide(el) { document.getElementById(el).classList.remove('show'); }
+
+async function load() {
+  if (!SESSION) return;
+  var btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  document.getElementById('errEl').classList.remove('show');
+  document.getElementById('countLine').style.display = 'none';
+  document.getElementById('list').innerHTML = '';
+  show('loadingEl');
+
+  try {
+    var res = await jsonp({ action: 'getScopedPending', userCode: SESSION.userCode });
+    hide('loadingEl');
+    if (!res || !res.success) {
+      var e = document.getElementById('errEl');
+      e.textContent = (res && res.error) ? res.error : 'Could not load submissions.';
+      e.classList.add('show');
+      return;
+    }
+
+    var scope = (res.scope || []).join(', ') || '—';
+    document.getElementById('scopePill').textContent = scope;
+
+    var subs = res.submissions || [];
+    var list = document.getElementById('list');
+    if (!subs.length) {
+      list.innerHTML =
+        '<div class="empty"><div class="big">✅</div>' +
+        '<div class="t1">Nothing pending</div>' +
+        '<div class="t2">No submissions from ' + esc(scope) + ' are waiting for approval.</div></div>';
+      return;
+    }
+    var cl = document.getElementById('countLine');
+    cl.textContent = subs.length + ' pending submission' + (subs.length === 1 ? '' : 's');
+    cl.style.display = 'block';
+    list.innerHTML = subs.map(cardHtml).join('');
+  } catch(err) {
+    hide('loadingEl');
+    var e2 = document.getElementById('errEl');
+    e2.textContent = (String(err.message) === 'timeout')
+      ? 'Server timed out. Tap Refresh to try again.'
+      : 'Connection error. Check your internet and tap Refresh.';
+    e2.classList.add('show');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Init
+if (SESSION) {
+  document.getElementById('userLine').textContent =
+    (SESSION.userName ? SESSION.userName + ' · ' : '') + 'Read-only reviewer';
+  load();
+}
+</script>
+</body>
+</html>

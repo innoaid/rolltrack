@@ -7,6 +7,11 @@ var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
 
 var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel', 'SC05': 'Team Attiq', 'SC06': 'Team Noman' };
 
+// VIEWER_SCOPE — read-only reviewer logins limited to specific subcons.
+// Keyed on UserCode (Credentials sheet). A viewer sees ONLY pending submissions
+// from the listed subcon codes and has NO approve/reject/mutation actions.
+var VIEWER_SCOPE = { 'OSMENT': ['SC05', 'SC06'] };
+
 // ── Helpers ──────────────────────────────────────────────────────
 function getSpreadsheet() { return SpreadsheetApp.openById(SPREADSHEET_ID); }
 function getSheet(name)   { return getSpreadsheet().getSheetByName(name); }
@@ -85,6 +90,9 @@ function doGet(e) {
         break;
       case 'getAllSubmissions':
         result = getAllSubmissions();
+        break;
+      case 'getScopedPending':
+        result = getScopedPending(p.userCode);
         break;
       case 'getQuotations':
         result = { success: true, quotations: getQuotations() };
@@ -286,6 +294,55 @@ function getPendingSubmissions() {
     });
   }
   return result;
+}
+
+// getScopedPending — pending submissions limited to a viewer's allowed subcons.
+// Used by read-only reviewer logins (e.g. OSMENT → SC05, SC06). Scope is looked
+// up server-side from VIEWER_SCOPE keyed on userCode, so a client cannot widen
+// its own view. Read-only: no approve/reject is ever exposed to these users.
+function getScopedPending(userCode) {
+  var code  = String(userCode || '').trim().toUpperCase();
+  var scope = VIEWER_SCOPE[code];
+  if (!scope) return { success: false, error: 'No viewer scope for ' + (code || '(none)') };
+
+  var allow = {};
+  scope.forEach(function(c) { allow[String(c).trim().toUpperCase()] = true; });
+
+  var sheet = getSheet('Submissions');
+  if (!sheet) return { success: false, error: 'Submissions sheet not found' };
+  var data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return { success: true, scope: scope, submissions: [] };
+  var headers = data[0];
+  var puIdx = headers.indexOf('PUSealant');       if (puIdx < 0) puIdx = 14;
+  var acIdx = headers.indexOf('AdditionalCosts');  if (acIdx < 0) acIdx = 15;
+  var phIdx = headers.indexOf('PhotoURL');         if (phIdx < 0) phIdx = 8;
+
+  var rows = sheetToObjects(sheet);
+  var result = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.Status || '').trim().toLowerCase() !== 'pending') continue;
+    if (!allow[String(r.SubconCode || '').trim().toUpperCase()]) continue;
+    var ac = [];
+    try { var raw = r.AdditionalCosts || data[i + 1][acIdx] || ''; if (raw) ac = JSON.parse(raw); } catch(e) {}
+    result.push({
+      id:          r.SubmissionID || '',
+      timestamp:   r.Timestamp    || '',
+      subconCode:  r.SubconCode   || '',
+      subconName:  r.SubconName   || '',
+      formType:    r.FormType     || '',
+      quotationNo: r.QuotationNo  || '',
+      qty:         Number(r.Qty)  || 0,
+      date:        r.ActivityDate || '',
+      notes:       r.Notes        || '',
+      photoURL:    r.PhotoURL || data[i + 1][phIdx] || '',
+      puSealant:   Number(r.PUSealant || data[i + 1][puIdx]) || 0,
+      additionalCosts: ac
+    });
+  }
+  // Newest first (timestamps are ISO-ish strings from sheetToObjects).
+  result.sort(function(a, b) { return String(b.timestamp).localeCompare(String(a.timestamp)); });
+  return { success: true, scope: scope, submissions: result };
 }
 
 function getAllSubmissions() {
@@ -1511,6 +1568,36 @@ function addSubcons0506() {
   var msg = added.length ? 'Added: ' + added.join(', ') : 'Nothing to add — SC05/SC06 already present.';
   Logger.log(msg);
   return msg;
+}
+
+// ════════════════════════════════════════════════════════════════
+// One-shot: add read-only reviewer login OSMENT (views SC05 + SC06
+// pending submissions only). Append-only + idempotent — safe to re-run.
+// Run once from the Apps Script editor after pasting. Change PIN first.
+// ════════════════════════════════════════════════════════════════
+function addViewerOsment() {
+  var ss   = getSpreadsheet();
+  var code = 'OSMENT';
+  var name = 'Osment';
+  var pin  = '0506';   // ← CHANGE to the PIN you want BEFORE running. Stored as text.
+
+  var credSh = ss.getSheetByName('Credentials');
+  if (!credSh) { setupCredentials(); credSh = ss.getSheetByName('Credentials'); }
+
+  var have = credSh.getDataRange().getValues().map(function(r){ return String(r[0]).trim().toUpperCase(); });
+  if (have.indexOf(code) !== -1) {
+    Logger.log(code + ' already exists in Credentials — nothing added.');
+    return code + ' already exists — edit its row in the Credentials sheet to change PIN.';
+  }
+
+  // Columns: UserCode | UserName | UserType | Phone | PIN | Active
+  credSh.appendRow([code, name, 'viewer', '', pin, true]);
+  var pinCell = credSh.getRange(credSh.getLastRow(), 5); // col E = PIN, force text (leading zeros)
+  pinCell.setNumberFormat('@');
+  pinCell.setValue(pin);
+
+  Logger.log('Added viewer login ' + code + ' (PIN ' + pin + ') scoped to ' + (VIEWER_SCOPE[code] || []).join(', '));
+  return 'Added ' + code + ' with PIN ' + pin + '.';
 }
 
 function setupAllSubconRates() {
