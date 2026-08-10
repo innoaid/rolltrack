@@ -705,6 +705,51 @@ function renderDash() {
   rec.innerHTML = r5.length ? r5.map(rLI).join('') : `<div class="empty"><div class="empty-i">📊</div><p>No activity this month</p></div>`;
 }
 
+// True per-subcon rate lookup — mirrors backend calculateTieredRate so the
+// approval card shows the same labour the backend will actually pay. Reads
+// D.subconRates (from getAll). Returns {rate, total}; `total` is the labour
+// cost (handles SC04-style flatTotal tiers where total != rolls × rate).
+// Falls back to the legacy generic tiers if rates aren't loaded/redeployed.
+function subconRate(code, rolls) {
+  rolls = Number(rolls) || 0;
+  const row = (D.subconRates || []).find(r => String(r.SubconCode) === String(code));
+  if (!row) {
+    const rt = rolls <= 4 ? 190 : rolls <= 9 ? 170 : 150;
+    return { rate: rt, total: rolls * rt };
+  }
+  const special = String(row.SpecialRates || '').trim();
+  if (special) {
+    try {
+      const tiers = JSON.parse(special);
+      for (const t of tiers) {
+        const minR = t.minRolls || 0;
+        const maxR = (t.maxRolls != null) ? t.maxRolls : 999999;
+        if (rolls >= minR && rolls <= maxR) {
+          if (t.flatTotal != null) {
+            const ft = Number(t.flatTotal);
+            return { rate: rolls > 0 ? Math.round(ft / rolls) : 0, total: ft };
+          }
+          const sr = Number(t.rate);
+          return { rate: sr, total: rolls * sr };
+        }
+      }
+      return { rate: 0, total: 0 };
+    } catch(e) {}
+  }
+  const t1Max = Number(row.Tier1MaxRolls) || 4;
+  const t1Rate = Number(row.Tier1Rate)    || 200;
+  const t2Min = Number(row.Tier2MinRolls) || 5;
+  const t2Max = Number(row.Tier2MaxRolls) || 9;
+  const t2Rate = Number(row.Tier2Rate)    || 170;
+  const t3Rate = Number(row.Tier3Rate)    || 150;
+  let rt;
+  if (rolls <= t1Max)                        rt = t1Rate;
+  else if (rolls >= t2Min && rolls <= t2Max) rt = t2Rate;
+  else if (rolls > t2Max)                    rt = t3Rate;
+  else                                       rt = t1Rate;
+  return { rate: rt, total: rolls * rt };
+}
+
 function renderApprovals() {
   const el   = ge('pendingList');
   const bdg  = ge('pendBadge');
@@ -739,8 +784,9 @@ function renderApprovals() {
     if (isInstall) {
       const qty = s.qty || 0;
       const totalSqft = qt ? (qt.totalSqft || 0) : 0;
-      const rate = qty <= 4 ? 190 : qty <= 9 ? 170 : 150;
-      const labourCost = qty * rate;
+      const _rt = subconRate(s.subconCode, qty);
+      const rate = _rt.rate;
+      const labourCost = _rt.total;
       const labourPerSqft = totalSqft > 0 ? (labourCost / totalSqft).toFixed(2) : '—';
       // ── Project P&L (full quotation value − subcon payment − fixed membrane material) ──
       const addTotal    = (s.additionalCosts||[]).reduce((sum,c) => sum + Number(c.amount||0), 0);
@@ -1055,8 +1101,9 @@ function recomputeAC(id) {
   const total = collected.items.reduce((s, c) => s + Number(c.amount || 0), 0);
   const sub = (D.pendingSubmissions || []).find(s => s.id === id);
   const qty = sub ? Number(sub.qty || 0) : 0;
-  const rate = qty <= 4 ? 190 : qty <= 9 ? 170 : 150;
-  const labourCost = qty * rate;
+  const _rt = subconRate(sub ? sub.subconCode : '', qty);
+  const rate = _rt.rate;
+  const labourCost = _rt.total;
   const totalEl = ge('ac_total_' + id); if (totalEl) totalEl.textContent = 'RM ' + total.toFixed(2);
   const addEl   = ge('pb_add_'   + id); if (addEl)   addEl.textContent   = 'RM ' + total.toFixed(2);
   const p1El    = ge('pb_p1_'    + id); if (p1El)    p1El.textContent    = 'RM ' + fmtN(labourCost * 0.5 + total / 2);

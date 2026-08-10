@@ -159,6 +159,7 @@ function getAll() {
     subconBalances:     getSubconBalances(),
     pendingSubmissions: getPendingSubmissions(),
     quotations:         getQuotations(),
+    subconRates:        (getSubconRates().rates || []),
     recentLog:          getRecentLog(100)
   };
 }
