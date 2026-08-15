@@ -5,7 +5,7 @@
 
 var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
 
-var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel', 'SC05': 'Team Attiq', 'SC06': 'Team Noman' };
+var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel', 'SC05': 'Team Attiq', 'SC06': 'Team Noman', 'SC07': 'Team Danny' };
 
 // VIEWER_SCOPE — read-only reviewer logins limited to specific subcons.
 // Keyed on UserCode (Credentials sheet). A viewer sees ONLY pending submissions
@@ -1480,10 +1480,11 @@ function setupCredentials() {
     sheet.appendRow(['SC04', 'Md Foysel', 'subcon', '', '1234', true]);
     sheet.appendRow(['SC05', 'Team Attiq', 'subcon', '', '0000', true]);
     sheet.appendRow(['SC06', 'Team Noman', 'subcon', '', '1987', true]);
+    sheet.appendRow(['SC07', 'Team Danny', 'subcon', '', '1234', true]);
     // Force PIN column (E) to plain text so a leading-zero PIN like "0000"
     // isn't stored as the number 0 (which would never match at login).
     sheet.getRange(2, 5, sheet.getLastRow() - 1, 1).setNumberFormat('@');
-    sheet.getRange(6, 5).setValue('0000'); // re-assert SC05 PIN as text
+    sheet.getRange(7, 5).setValue('0000'); // re-assert SC05 PIN as text (SC05 is row 7)
     Logger.log('Credentials sheet created with default users');
   } else {
     Logger.log('Credentials sheet already has data (' + existing.length + ' rows)');
@@ -1504,7 +1505,8 @@ function setupAllSubcons() {
     ['SC03','Md Mohiuddin',0,0,0,''],
     ['SC04','Md Foysel',0,0,0,''],
     ['SC05','Team Attiq',0,0,0,''],
-    ['SC06','Team Noman',0,0,0,'']
+    ['SC06','Team Noman',0,0,0,''],
+    ['SC07','Team Danny',0,0,0,'']
   ];
   subcons.forEach(function(s) {
     if (existing.indexOf(s[0]) === -1) sh.appendRow(s);
@@ -1513,11 +1515,12 @@ function setupAllSubcons() {
 }
 
 // ════════════════════════════════════════════════════════════════
-// One-shot: add SC05 (Team Attiq) + SC06 (Team Noman) to a LIVE sheet.
-// Append-only and idempotent — safe to run without wiping existing rates
-// or credentials. Run once from the Apps Script editor after pasting.
+// One-shot: add SC05 (Team Attiq), SC06 (Team Noman), SC07 (Team Danny)
+// to a LIVE sheet. Append-only and idempotent — safe to re-run without
+// wiping existing rates or credentials; only missing subcons are added.
+// Run once from the Apps Script editor after pasting.
 // ════════════════════════════════════════════════════════════════
-function addSubcons0506() {
+function addNewSubcons() {
   var ss = getSpreadsheet();
   var added = [];
 
@@ -1532,6 +1535,11 @@ function addSubcons0506() {
       code: 'SC06', name: 'Team Noman', pin: '1987',
       // 1-4 → 200, 5-9 → 170, 10+ → 150
       rate: ['SC06','Team Noman',4,200,5,9,170,150,'']
+    },
+    {
+      code: 'SC07', name: 'Team Danny', pin: '1234',
+      // same tiers as SC03 — 1-4 → 200, 5-9 → 170, 10+ → 150
+      rate: ['SC07','Team Danny',4,200,5,9,170,150,'']
     }
   ];
 
@@ -1566,7 +1574,7 @@ function addSubcons0506() {
     });
   }
 
-  var msg = added.length ? 'Added: ' + added.join(', ') : 'Nothing to add — SC05/SC06 already present.';
+  var msg = added.length ? 'Added: ' + added.join(', ') : 'Nothing to add — SC05/SC06/SC07 already present.';
   Logger.log(msg);
   return msg;
 }
@@ -1632,6 +1640,8 @@ function setupAllSubconRates() {
   sh.appendRow(['SC05','Team Attiq',5,190,6,10,160,140,'']);
   // SC06 Team Noman: 1-4 → 200, 5-9 → 170, 10+ → 150
   sh.appendRow(['SC06','Team Noman',4,200,5,9,170,150,'']);
+  // SC07 Team Danny: same tiers as SC03 — 1-4 → 200, 5-9 → 170, 10+ → 150
+  sh.appendRow(['SC07','Team Danny',4,200,5,9,170,150,'']);
 
   Logger.log('setupAllSubconRates complete');
 }

@@ -340,7 +340,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
   <button class="btn btn-o" style="margin-bottom:11px" onclick="openQtModal(null)">＋ &nbsp;Add New Quotation</button>
   <div style="display:flex;gap:8px;margin-bottom:12px">
     <input type="text" id="qtSearch" placeholder="Search QT no, client, project..." oninput="renderQuotations()" style="flex:1">
-    <select id="qtSubconFilter" onchange="renderQuotations()" style="width:140px;font-size:13px"><option value="">All subcons</option><option value="SC01">Md Atik</option><option value="SC02">Md Shahazan</option><option value="SC03">Md Mohiuddin</option><option value="SC04">Md Foysel</option><option value="SC05">Team Attiq</option><option value="SC06">Team Noman</option><option value="UNASSIGNED">Unassigned</option></select>
+    <select id="qtSubconFilter" onchange="renderQuotations()" style="width:140px;font-size:13px"><option value="">All subcons</option><option value="SC01">Md Atik</option><option value="SC02">Md Shahazan</option><option value="SC03">Md Mohiuddin</option><option value="SC04">Md Foysel</option><option value="SC05">Team Attiq</option><option value="SC06">Team Noman</option><option value="SC07">Team Danny</option><option value="UNASSIGNED">Unassigned</option></select>
   </div>
   <div id="qtList"></div>
 </div>
@@ -373,6 +373,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <option value="SC04">Md Foysel (SC04)</option>
     <option value="SC05">Team Attiq (SC05)</option>
     <option value="SC06">Team Noman (SC06)</option>
+    <option value="SC07">Team Danny (SC07)</option>
   </select>
   <div class="chips" id="pay-chips">
     <div class="chip on" onclick="filterPayments('all',this)">All</div>
@@ -465,7 +466,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
         <select id="qt_stat"><option value="active">Active</option><option value="completed">Completed</option><option value="upcoming">Upcoming</option></select>
       </div>
       <div class="fg"><label>Assigned Subcon</label>
-        <select id="qt_subcon"><option value="">— Not assigned —</option><option value="SC01">SC01 — Md Atik</option><option value="SC02">SC02 — Md Shahazan</option><option value="SC03">SC03 — Md Mohiuddin</option><option value="SC04">SC04 — Md Foysel</option><option value="SC05">SC05 — Team Attiq</option><option value="SC06">SC06 — Team Noman</option></select>
+        <select id="qt_subcon"><option value="">— Not assigned —</option><option value="SC01">SC01 — Md Atik</option><option value="SC02">SC02 — Md Shahazan</option><option value="SC03">SC03 — Md Mohiuddin</option><option value="SC04">SC04 — Md Foysel</option><option value="SC05">SC05 — Team Attiq</option><option value="SC06">SC06 — Team Noman</option><option value="SC07">SC07 — Team Danny</option></select>
       </div>
     </div>
     <div style="display:flex;gap:8px;margin-top:4px">
@@ -527,7 +528,7 @@ const now_ = new Date();
 let filterFrom = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let filterTo   = new Date(now_.getFullYear(), now_.getMonth(), now_.getDate());
 let allSubmissions = [];
-const SUBCONS_MAP = {'SC01':'Md Atik (SC01)','SC02':'Md Shahazan (SC02)','SC03':'Md Mohiuddin (SC03)','SC04':'Md Foysel (SC04)','SC05':'Team Attiq (SC05)','SC06':'Team Noman (SC06)'};
+const SUBCONS_MAP = {'SC01':'Md Atik (SC01)','SC02':'Md Shahazan (SC02)','SC03':'Md Mohiuddin (SC03)','SC04':'Md Foysel (SC04)','SC05':'Team Attiq (SC05)','SC06':'Team Noman (SC06)','SC07':'Team Danny (SC07)'};
 
 // ══════════════════════════════════════
 // JSONP
@@ -2115,7 +2116,7 @@ async function undoApproval(qno, scCode) {
 
 // ── Subcon Payment Report Generator ────────────────────
 function generateReport() {
-  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel', SC05:'Team Attiq', SC06:'Team Noman'};
+  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel', SC05:'Team Attiq', SC06:'Team Noman', SC07:'Team Danny'};
   const sc = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
   const subconName = NAME_BY_CODE[sc] || 'All Subcons';
 
@@ -2376,7 +2377,7 @@ ${body}
 // chosen window. Sorted chronologically so the boss can tick rows off against
 // a bank statement.
 function generateBankTallyReport() {
-  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel', SC05:'Team Attiq', SC06:'Team Noman'};
+  const NAME_BY_CODE = {SC01:'Md Atik', SC02:'Md Shahazan', SC03:'Md Mohiuddin', SC04:'Md Foysel', SC05:'Team Attiq', SC06:'Team Noman', SC07:'Team Danny'};
   const sc = ge('paySubconFilter') ? ge('paySubconFilter').value : '';
   const subconName = NAME_BY_CODE[sc] || 'All Subcons';
 
