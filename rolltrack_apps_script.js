@@ -1538,8 +1538,8 @@ function addNewSubcons() {
     },
     {
       code: 'SC07', name: 'Team Danny', pin: '1234',
-      // same tiers as SC03 — 1-4 → 200, 5-9 → 170, 10+ → 150
-      rate: ['SC07','Team Danny',4,200,5,9,170,150,'']
+      // 1-20 → 150, 21-60 → 130, 61+ → 95
+      rate: ['SC07','Team Danny',20,150,21,60,130,95,'']
     }
   ];
 
@@ -1640,8 +1640,8 @@ function setupAllSubconRates() {
   sh.appendRow(['SC05','Team Attiq',5,190,6,10,160,140,'']);
   // SC06 Team Noman: 1-4 → 200, 5-9 → 170, 10+ → 150
   sh.appendRow(['SC06','Team Noman',4,200,5,9,170,150,'']);
-  // SC07 Team Danny: same tiers as SC03 — 1-4 → 200, 5-9 → 170, 10+ → 150
-  sh.appendRow(['SC07','Team Danny',4,200,5,9,170,150,'']);
+  // SC07 Team Danny: 1-20 → 150, 21-60 → 130, 61+ → 95
+  sh.appendRow(['SC07','Team Danny',20,150,21,60,130,95,'']);
 
   Logger.log('setupAllSubconRates complete');
 }
