@@ -455,7 +455,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <div class="fg"><label>Blocks</label><input type="number" id="qt_blocks" placeholder="0"></div>
     <div class="r2">
       <div class="fg"><label>Est. Rolls (auto)</label><input type="number" id="qt_rolls" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
-      <div class="fg"><label>Total Contract Value (auto)</label><input type="text" id="qt_val" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
+      <div class="fg"><label>Total Contract Value (RM)</label><input type="number" id="qt_val" step="0.01" placeholder="auto = rate × sqft, or type lump sum" class="mono-in"></div>
     </div>
     <div class="r2">
       <div class="fg"><label>Material Cost (auto)</label><input type="text" id="qt_memval" placeholder="—" class="mono-in" style="background:var(--s3)" readonly></div>
@@ -1316,7 +1316,8 @@ function calcQt() {
   const rolls = sqft > 0 ? Math.ceil(sqft / ROLL_SQFT) : 0;
   const avg   = (D.stock && D.stock.avgCost) || 0;
   ge('qt_rolls').value   = rolls || '';
-  ge('qt_val').value     = sqft && rate ? 'RM ' + (sqft * rate).toLocaleString('en-MY',{minimumFractionDigits:2}) : '';
+  // Auto-fill value only in per-sqft mode; leave it for manual lump-sum (l/s) entry when rate is blank.
+  if (sqft && rate) ge('qt_val').value = (sqft * rate).toFixed(2);
   ge('qt_memval').value  = rolls && avg ? 'RM ' + (rolls * avg).toLocaleString('en-MY',{minimumFractionDigits:2}) : '';
   ge('qt_avgcost').value = avg ? 'RM ' + avg.toLocaleString('en-MY',{minimumFractionDigits:2}) : '—';
 }
@@ -1392,7 +1393,7 @@ async function handlePdfFile(event) {
         role: 'user',
         content: [
           { type: 'file', file: { filename: file.name || 'quotation.pdf', file_data: pdfDataUri } },
-          { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD.' }
+          { type: 'text', text: 'Extract quotation data from this Innovation AID waterproofing quotation PDF. Return ONLY a JSON object with no explanation:\n{"quotationNo":"QT-XXXX-XXX","date":"YYYY-MM-DD","clientName":"name","projectName":"name","siteAddress":"address","membraneType":"type","ratePerSqft":8.50,"totalSqft":26237,"totalValue":232764.50,"blocks":7}\nFor totalSqft: SUM all block sqft quantities (a+b+c+d...). For blocks: count lettered items. For date: convert DD/MM/YYYY to YYYY-MM-DD. If the quotation is a lump-sum (l/s) price with no per-sqft rate, set ratePerSqft to 0 and put the lump-sum total in totalValue.' }
         ]
       }]
     }, apiKey);
@@ -1410,6 +1411,7 @@ async function handlePdfFile(event) {
     ge('qt_rate').value = extracted.ratePerSqft || '';
     ge('qt_sqft').value = extracted.totalSqft || '';
     ge('qt_blocks').value = extracted.blocks || '';
+    ge('qt_val').value  = extracted.totalValue || '';  // keep the lump sum when there's no per-sqft rate
     calcQt();
     ge('qtMtitle').innerHTML = '<span style="color:var(--green)">✓ PDF read successfully</span> — review & save';
   } catch(e) {
@@ -1433,6 +1435,7 @@ function openQtModal(id) {
       ge('qt_mem').value  = q.membraneType||'';
       ge('qt_rate').value = q.ratePerSqft||'';
       ge('qt_sqft').value = q.totalSqft||'';
+      ge('qt_val').value  = q.totalValue||'';
       ge('qt_blocks').value= q.blocks||'';
       ge('qt_stat').value = q.status||'active';
       ge('qt_subcon').value = q.assignedSubcon||'';
@@ -1453,8 +1456,8 @@ async function saveQt() {
   if (!no) { toast('Enter quotation number'); return; }
   const sqft = parseFloat(ge('qt_sqft').value)||0;
   const rate = parseFloat(ge('qt_rate').value)||0;
-  if (sqft <= 0) { toast('Enter total sqft'); ge('qt_sqft').focus(); return; }
-  if (rate <= 0) { toast('Enter rate RM/sqft'); ge('qt_rate').focus(); return; }
+  const val  = parseFloat(ge('qt_val').value)||0;   // editable: auto (rate × sqft) OR manual lump sum
+  if (val <= 0) { toast('Enter rate + sqft, or a lump-sum value'); ge('qt_val').focus(); return; }
   loading(true,'Saving...');
   try {
     const res = await jsonp({
@@ -1468,7 +1471,7 @@ async function saveQt() {
       ratePerSqft: rate,
       totalSqft:   sqft,
       blocks:      parseInt(ge('qt_blocks').value)||0,
-      totalValue:  (sqft * rate).toFixed(2),
+      totalValue:  val.toFixed(2),
       status:      ge('qt_stat').value,
       assignedSubcon: ge('qt_subcon').value
     });
@@ -2566,7 +2569,7 @@ async function generatePerfReport() {
   const activeInRange = new Set(rangeSubs.map(s => String(s.quotationNo).trim()));
 
   // Contract value from completed quotations with installs in date range
-  const totalContractValue = completedQts.filter(q => activeInRange.has(String(q.quotationNo).trim())).reduce((s, q) => s + (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0), 0);
+  const totalContractValue = completedQts.filter(q => activeInRange.has(String(q.quotationNo).trim())).reduce((s, q) => s + (Number(q.totalValue) || (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0)), 0);
 
   // Labour cost = TotalAmount from payments for completed quotations
   // p['QuotationNo'] = capital key from Payments sheet; match against completedNos values
@@ -2622,7 +2625,7 @@ async function generatePerfReport() {
   // Project breakdown — completed quotations only
   const projRows = completedQts.map(q => {
     const qSqft = qtSqftMap[q.quotationNo] || 0;
-    const cv = (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0);
+    const cv = Number(q.totalValue) || (Number(q.totalSqft)||0) * (Number(q.ratePerSqft)||0);
     return `<tr><td>${q.quotationNo}</td><td>${q.clientName||'—'}</td><td>${q.projectName||'—'}</td><td style="text-align:right">${qSqft > 0 ? fmtN(qSqft) : '—'}</td><td style="text-align:right">RM ${fmtN(cv)}</td><td>COMPLETE</td></tr>`;
   }).join('') || '<tr><td colspan="6" style="text-align:center;color:#999">No completed projects</td></tr>';
 
