@@ -857,11 +857,15 @@ function renderApprovals() {
         ${qt ? `<div style="padding:10px 13px;border-bottom:1px solid var(--border);background:var(--s2)">
           <div style="font-size:9px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px">Project Profit / Loss</div>
           <div style="display:grid;grid-template-columns:1fr auto;gap:3px;font-size:12px">
-            <div style="color:var(--green)">Quotation value</div><div style="font-weight:700;text-align:right;color:var(--green)">RM ${fmtN(qtValue)}</div>
+            ${qtValue > 0
+              ? `<div style="color:var(--green)">Quotation value</div><div style="font-weight:700;text-align:right;color:var(--green)">RM ${fmtN(qtValue)}</div>`
+              : `<div style="color:var(--orange)">Quotation value</div><div style="font-weight:700;text-align:right;color:var(--orange)">⚠ not set</div>`}
             <div style="color:var(--muted)">Subcon payment (labour + add'l)</div><div style="font-weight:700;text-align:right" id="pl_subcon_${s.id}">RM ${fmtN(subconCost)}</div>
             <div style="color:var(--muted)">Material (${qty} × RM ${MEMBRANE_COST_PER_ROLL})</div><div style="font-weight:700;text-align:right">RM ${fmtN(materialCost)}</div>
             <div style="color:var(--muted);border-top:1px solid var(--border);padding-top:3px">Total cost</div><div style="font-weight:700;text-align:right;border-top:1px solid var(--border);padding-top:3px" id="pl_total_${s.id}">RM ${fmtN(totalCostPL)}</div>
-            <div style="font-weight:800;border-top:2px solid var(--border);padding-top:4px">Net profit / loss</div><div style="font-weight:800;text-align:right;border-top:2px solid var(--border);padding-top:4px;color:${netPL >= 0 ? 'var(--green)' : 'var(--red)'}" id="pl_net_${s.id}">RM ${fmtN(netPL)}</div>
+            ${qtValue > 0
+              ? `<div style="font-weight:800;border-top:2px solid var(--border);padding-top:4px">Net profit / loss</div><div style="font-weight:800;text-align:right;border-top:2px solid var(--border);padding-top:4px;color:${netPL >= 0 ? 'var(--green)' : 'var(--red)'}" id="pl_net_${s.id}">RM ${fmtN(netPL)}</div>`
+              : `<div style="grid-column:1 / -1;border-top:2px solid var(--border);padding-top:4px;color:var(--orange);font-size:11px">⚠ This quotation (${s.quotationNo}) has no value set — add it in Projects to see net profit / loss.</div>`}
           </div>
         </div>` : `<div style="padding:10px 13px;border-bottom:1px solid var(--border);font-size:11px;color:var(--muted)">Link a quotation to this submission to see project profit / loss.</div>`}
         <div style="padding:0 12px 8px;margin-top:6px"><input type="text" id="qcn_${s.id}" placeholder="QC notes (optional)" style="font-size:13px;padding:8px 10px"></div>
