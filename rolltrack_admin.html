@@ -1453,6 +1453,8 @@ async function saveQt() {
   if (!no) { toast('Enter quotation number'); return; }
   const sqft = parseFloat(ge('qt_sqft').value)||0;
   const rate = parseFloat(ge('qt_rate').value)||0;
+  if (sqft <= 0) { toast('Enter total sqft'); ge('qt_sqft').focus(); return; }
+  if (rate <= 0) { toast('Enter rate RM/sqft'); ge('qt_rate').focus(); return; }
   loading(true,'Saving...');
   try {
     const res = await jsonp({

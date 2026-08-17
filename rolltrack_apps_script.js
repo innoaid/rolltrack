@@ -838,6 +838,8 @@ function addQuotation(p) {
   var cfg      = getConfig();
   var memValue = estRolls * (cfg.avgCost || 0);       // material cost = EstRolls × avg_cost
   var totValue = parseFloat(p.totalValue) || (sqft * rate); // contract value = TotalSqft × RatePerSqft
+  // Reject value-less quotations — they break the approval-card P&L and reports.
+  if (!(totValue > 0)) return { success: false, error: 'Quotation value cannot be zero — enter rate and total sqft.' };
 
   var row = [
     quotNo,                                                                  // 0  QuotationNo
