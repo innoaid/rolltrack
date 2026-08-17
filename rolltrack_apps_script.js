@@ -1538,8 +1538,13 @@ function addNewSubcons() {
     },
     {
       code: 'SC07', name: 'Team Danny', pin: '1234',
-      // 1-20 → 150, 21-60 → 130, 61+ → 95
-      rate: ['SC07','Team Danny',20,150,21,60,130,95,'']
+      // 1-20 → 150, 21-60 → 130, 61-100 → 110, 101+ → 95 (4 tiers → SpecialRates JSON)
+      rate: ['SC07','Team Danny',0,0,0,0,0,0, JSON.stringify([
+        {minRolls:1,maxRolls:20,rate:150},
+        {minRolls:21,maxRolls:60,rate:130},
+        {minRolls:61,maxRolls:100,rate:110},
+        {minRolls:101,rate:95}
+      ])]
     }
   ];
 
@@ -1640,8 +1645,13 @@ function setupAllSubconRates() {
   sh.appendRow(['SC05','Team Attiq',5,190,6,10,160,140,'']);
   // SC06 Team Noman: 1-4 → 200, 5-9 → 170, 10+ → 150
   sh.appendRow(['SC06','Team Noman',4,200,5,9,170,150,'']);
-  // SC07 Team Danny: 1-20 → 150, 21-60 → 130, 61+ → 95
-  sh.appendRow(['SC07','Team Danny',20,150,21,60,130,95,'']);
+  // SC07 Team Danny: 1-20 → 150, 21-60 → 130, 61-100 → 110, 101+ → 95 (4 tiers → SpecialRates JSON)
+  sh.appendRow(['SC07','Team Danny',0,0,0,0,0,0, JSON.stringify([
+    {minRolls:1,maxRolls:20,rate:150},
+    {minRolls:21,maxRolls:60,rate:130},
+    {minRolls:61,maxRolls:100,rate:110},
+    {minRolls:101,rate:95}
+  ])]);
 
   Logger.log('setupAllSubconRates complete');
 }
