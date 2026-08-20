@@ -7,6 +7,18 @@ var SPREADSHEET_ID = '1O3Hvc0D-wMcBKLcC5IQKAboR1maFI2QuSi6XlIFZq9U';
 
 var SUBCONS = { 'SC01': 'Md Atik', 'SC02': 'Md Shahazan', 'SC03': 'Md Mohiuddin', 'SC04': 'Md Foysel', 'SC05': 'Team Attiq', 'SC06': 'Team Noman', 'SC07': 'Team Danny' };
 
+// ── Leak Guard CRM integration (Invoice Gate — Phase 1, INFO ONLY) ──
+// Read the CRM Leads sheet via its public gviz endpoint; write repair tags
+// via the CRM web app's addTagByPhone action (soft shared secret). Read the
+// CRM by HEADER NAME, never column letter — a 'Handled by' column was inserted
+// at A and shifted everything, and header labels still carry stale (letter) suffixes.
+var CRM_LEADS_GVIZ_URL = 'https://docs.google.com/spreadsheets/d/1FnuiZcOSy5UMQpW81I7qtU6a7NGlnHtJbH2EkVM7PLQ/gviz/tq?tqx=out:json&sheet=Leak%20Guard%20Leads';
+var CRM_WEBAPP_URL     = 'https://script.google.com/macros/s/AKfycbxjWM_kuuFvXhgPgoSEb4hycnIUHuxdOkYTfSWEhNPm7vrOYzZ6vFgQw-qA55Dv3mLB2Q/exec';
+var CRM_SHARED_SECRET  = 'ABC';
+// Funnel order — a lead reaching 'Pending Balance' is when the invoice is raised,
+// so any RollTrack row whose CRM status sits earlier was uploaded ahead of its invoice.
+var CRM_FUNNEL = ['New Lead','Pending Invitation','Pending Site Visit','Site Visit Confirmed','Pending QT','Quotation Sent','Pending I.Date','I.Date Confirmed','Pending Downpayment','Job In Progress','Pending Balance','Job Complete','Receipt Sent','Completed'];
+
 // VIEWER_SCOPE — read-only reviewer logins limited to specific subcons.
 // Keyed on UserCode (Credentials sheet). A viewer sees ONLY pending submissions
 // from the listed subcon codes and has NO approve/reject/mutation actions.
@@ -100,6 +112,12 @@ function doGet(e) {
       case 'login':
         result = handleLogin(p);
         break;
+      case 'flagRepair':
+        result = flagRepair(p.quotationNo, p.flaggedBy);
+        break;
+      case 'syncCrmData':
+        result = syncCrmData();
+        break;
       default:
         result = { success: false, error: 'Unknown action: ' + (p.action || '(none)') };
     }
@@ -160,8 +178,17 @@ function getAll() {
     pendingSubmissions: getPendingSubmissions(),
     quotations:         getQuotations(),
     subconRates:        (getSubconRates().rates || []),
+    awaitingInvoice:    getAwaitingInvoice(),
     recentLog:          getRecentLog(100)
   };
+}
+
+// CRM "awaiting invoice" worklist — CRM leads at 'Job In Progress' with no
+// RollTrack quotation row. Computed by syncCrmData and cached in ScriptProperties
+// so the approval screen reads it from getAll with zero added latency.
+function getAwaitingInvoice() {
+  try { return JSON.parse(PropertiesService.getScriptProperties().getProperty('crm_awaiting_invoice') || '[]'); }
+  catch (e) { return []; }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -836,6 +863,162 @@ function setupCrmSyncColumns() {
   var msg = added.length ? 'Added columns: ' + added.join(', ') : 'All CRM sync columns already present.';
   Logger.log(msg);
   return msg;
+}
+
+// ── Parse a gviz JSONP response into {headers, rows} ──────────────
+function crmParseGviz_(text) {
+  var m = String(text || '').match(/setResponse\(([\s\S]*)\)/);
+  if (!m) throw new Error('CRM gviz: unexpected response (not JSONP)');
+  var obj   = JSON.parse(m[1]);
+  var table = obj.table || {};
+  var headers = (table.cols || []).map(function(c) { return String(c.label || '').trim(); });
+  var rows    = (table.rows || []).map(function(r) {
+    return (r.c || []).map(function(cell) { return cell ? cell.v : null; });
+  });
+  return { headers: headers, rows: rows };
+}
+
+// ── POST a tag to the CRM (addTagByPhone) — idempotent, append-only ──
+function crmAddTag_(phone, tag, changedBy) {
+  var payload = { action: 'addTagByPhone', secret: CRM_SHARED_SECRET, phone: String(phone || ''), tag: String(tag || '') };
+  if (changedBy) payload.changedBy = String(changedBy);
+  var resp = UrlFetchApp.fetch(CRM_WEBAPP_URL, {
+    method: 'post', contentType: 'text/plain',
+    payload: JSON.stringify(payload), muteHttpExceptions: true, followRedirects: true
+  });
+  try { return JSON.parse(resp.getContentText()); }
+  catch (e) { return { status: 'error', message: 'bad CRM response' }; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// syncCrmData — time-driven (run every 20–30 min via installCrmSyncTrigger).
+// ONE gviz read of the CRM Leads sheet, joined in memory against all
+// quotations. Writes CrmStatus/CrmPhone/CrmMatch/RepairTagged/SyncedAt back
+// to the Quotations sheet; leaves RepairFlagged/By/At (RollTrack's own record)
+// untouched. Re-asserts the CRM repair tag when a locally-flagged job lost it.
+// ════════════════════════════════════════════════════════════════
+function syncCrmData() {
+  var qSheet = getSheet('Quotations');
+  if (!qSheet) return { success: false, error: 'Quotations sheet not found' };
+
+  var resp = UrlFetchApp.fetch(CRM_LEADS_GVIZ_URL, { muteHttpExceptions: true });
+  if (resp.getResponseCode() !== 200) return { success: false, error: 'CRM gviz HTTP ' + resp.getResponseCode() };
+  var crm = crmParseGviz_(resp.getContentText());
+  var h = {}; crm.headers.forEach(function(name, i) { h[name] = i; });
+  var iQt = h['AutoCount QT No'], iStatus = h['Status'], iPhone = h['Phone'], iTags = h['Tags'], iGroup = h['Group Name (AE)'];
+  if (iQt === undefined || iStatus === undefined || iPhone === undefined || iTags === undefined) {
+    return { success: false, error: 'CRM headers missing (need AutoCount QT No / Status / Phone / Tags)' };
+  }
+
+  var byQt = {}, groupRows = [];
+  crm.rows.forEach(function(row) {
+    var qt = String(row[iQt] || '').trim().toUpperCase();
+    var info = {
+      status: String(row[iStatus] || '').trim(),
+      phone:  String(row[iPhone]  || '').trim(),
+      tags:   String(row[iTags]   || '').trim(),
+      group:  iGroup !== undefined ? String(row[iGroup] || '').trim() : ''
+    };
+    if (qt) byQt[qt] = info;
+    if (info.group) groupRows.push(info);
+  });
+  function tagsHaveRepair(tags) {
+    return tags.toLowerCase().split(',').map(function(t) { return t.trim(); }).indexOf('repair') !== -1;
+  }
+
+  var data = qSheet.getDataRange().getValues();
+  var qh = {}; data[0].forEach(function(name, i) { qh[String(name).trim()] = i; });
+  var qNoIdx = qh['QuotationNo'], cStatus = qh['CrmStatus'], cPhone = qh['CrmPhone'],
+      cMatch = qh['CrmMatch'], cRepTag = qh['RepairTagged'], cRepFlag = qh['RepairFlagged'], cSynced = qh['SyncedAt'];
+  if (cStatus === undefined) return { success: false, error: 'CRM sync columns missing — run setupCrmSyncColumns() first' };
+
+  var now = new Date(), n = data.length - 1, matched = 0, reasserts = 0, matchedQt = {};
+  var colStatus = [], colPhone = [], colMatch = [], colRepTag = [], colSynced = [];
+  for (var r = 1; r < data.length; r++) {
+    var qno  = String(data[r][qNoIdx] || '').trim();
+    var qnoU = qno.toUpperCase();
+    var info = null, match = 'none';
+    if (qno && byQt[qnoU]) { info = byQt[qnoU]; match = 'exact'; matchedQt[qnoU] = true; }
+    else if (qno) {
+      for (var g = 0; g < groupRows.length; g++) {
+        if (groupRows[g].group && groupRows[g].group.toUpperCase().indexOf(qnoU) !== -1) { info = groupRows[g]; match = 'via-group-name'; break; }
+      }
+    }
+    var repTagged = info ? (tagsHaveRepair(info.tags) ? 'yes' : 'no') : '';
+    if (info && String(data[r][cRepFlag] || '').trim().toLowerCase() === 'yes' && repTagged === 'no' && info.phone) {
+      try { var rr = crmAddTag_(info.phone, 'repair', 'rolltrack-sync'); if (rr && rr.added) reasserts++; } catch (e2) {}
+      repTagged = 'yes';
+    }
+    if (info) matched++;
+    colStatus.push([ info ? info.status : '' ]);
+    colPhone.push([  info ? info.phone  : '' ]);
+    colMatch.push([  match ]);
+    colRepTag.push([ repTagged ]);
+    colSynced.push([ now ]);
+  }
+  if (n > 0) {
+    qSheet.getRange(2, cStatus + 1, n, 1).setValues(colStatus);
+    qSheet.getRange(2, cPhone  + 1, n, 1).setValues(colPhone);
+    qSheet.getRange(2, cMatch  + 1, n, 1).setValues(colMatch);
+    qSheet.getRange(2, cRepTag + 1, n, 1).setValues(colRepTag);
+    qSheet.getRange(2, cSynced + 1, n, 1).setValues(colSynced);
+  }
+
+  // Awaiting-invoice worklist: CRM 'Job In Progress' leads with no RollTrack quotation.
+  var awaiting = [];
+  crm.rows.forEach(function(row) {
+    if (String(row[iStatus] || '').trim() !== 'Job In Progress') return;
+    var qt = String(row[iQt] || '').trim().toUpperCase();
+    if (qt && matchedQt[qt]) return;
+    awaiting.push({ status: 'Job In Progress', phone: String(row[iPhone] || '').trim(), qt: qt,
+                    group: iGroup !== undefined ? String(row[iGroup] || '').trim() : '' });
+  });
+  PropertiesService.getScriptProperties().setProperty('crm_awaiting_invoice', JSON.stringify(awaiting));
+
+  return { success: true, crmRows: crm.rows.length, matched: matched, reasserts: reasserts, awaiting: awaiting.length, syncedAt: now.toISOString() };
+}
+
+// Install the 30-min sync trigger. Run once from the editor.
+function installCrmSyncTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'syncCrmData') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('syncCrmData').timeBased().everyMinutes(30).create();
+  Logger.log('CRM sync trigger installed (every 30 min)');
+  return 'CRM sync trigger installed (every 30 min)';
+}
+
+// ════════════════════════════════════════════════════════════════
+// flagRepair — superior taps "Flag repair" on the approval card.
+// Writes RollTrack's own durable RepairFlagged first (unclobberable), then
+// pushes the 'repair' tag to the CRM lead by phone. A CRM "lead not found"
+// is surfaced, not swallowed — the local flag still stands.
+// ════════════════════════════════════════════════════════════════
+function flagRepair(quotationNo, flaggedBy) {
+  var qSheet = getSheet('Quotations');
+  if (!qSheet) return { success: false, error: 'Quotations sheet not found' };
+  var data = qSheet.getDataRange().getValues();
+  var qh = {}; data[0].forEach(function(name, i) { qh[String(name).trim()] = i; });
+  var qNoIdx = qh['QuotationNo'], cPhone = qh['CrmPhone'],
+      cRepFlag = qh['RepairFlagged'], cRepBy = qh['RepairFlaggedBy'], cRepAt = qh['RepairFlaggedAt'];
+  if (cRepFlag === undefined) return { success: false, error: 'CRM sync columns missing — run setupCrmSyncColumns() first' };
+  var who = String(flaggedBy || 'superior').trim() || 'superior';
+
+  for (var r = 1; r < data.length; r++) {
+    if (String(data[r][qNoIdx] || '').trim() !== String(quotationNo || '').trim()) continue;
+    // (a) durable RollTrack record FIRST
+    qSheet.getRange(r + 1, cRepFlag + 1).setValue('yes');
+    qSheet.getRange(r + 1, cRepBy   + 1).setValue(who);
+    qSheet.getRange(r + 1, cRepAt   + 1).setValue(new Date());
+    // (b) push to the CRM
+    var phone = String(data[r][cPhone] || '').trim();
+    if (!phone) return { success: true, repairFlagged: true, crm: 'skipped',
+                         crmMessage: 'Flag saved in RollTrack. No CRM phone on this quotation (not matched in CRM), so nothing was written to the kanban.' };
+    var res = crmAddTag_(phone, 'repair', who);
+    if (res && res.status === 'ok') return { success: true, repairFlagged: true, crm: 'ok', added: !!res.added, tags: res.tags || '' };
+    return { success: true, repairFlagged: true, crm: 'error', crmMessage: (res && res.message) || 'CRM tag write failed' };
+  }
+  return { success: false, error: 'Quotation not found: ' + quotationNo };
 }
 
 function fixSubmissionsHeader() {
