@@ -811,6 +811,32 @@ function fixQuotationsHeader() {
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// Invoice Gate — Phase 1 schema. Appends the CRM-sync columns to the
+// Quotations sheet if missing. Idempotent; safe to re-run. These sit at
+// col 16+ (past AssignedSubcon/O), so addQuotation's fixed 15-col write
+// never touches them. getQuotations exposes them as crmStatus, crmPhone,
+// crmMatch, repairTagged, repairFlagged, repairFlaggedBy, syncedAt.
+// Run once from the editor before enabling the sync trigger.
+// ════════════════════════════════════════════════════════════════
+function setupCrmSyncColumns() {
+  var sheet = getSheet('Quotations');
+  if (!sheet) return 'Quotations sheet not found';
+  var lastCol  = Math.max(sheet.getLastColumn(), 1);
+  var headers  = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var have     = {};
+  headers.forEach(function(h) { if (h) have[String(h).trim()] = true; });
+  var needed = ['CrmStatus','CrmPhone','CrmMatch','RepairTagged','RepairFlagged','RepairFlaggedBy','SyncedAt'];
+  var added   = [];
+  var nextCol = sheet.getLastColumn() + 1;
+  needed.forEach(function(name) {
+    if (!have[name]) { sheet.getRange(1, nextCol).setValue(name); added.push(name); nextCol++; }
+  });
+  var msg = added.length ? 'Added columns: ' + added.join(', ') : 'All CRM sync columns already present.';
+  Logger.log(msg);
+  return msg;
+}
+
 function fixSubmissionsHeader() {
   var sheet = getSheet('Submissions');
   if (!sheet) return;
