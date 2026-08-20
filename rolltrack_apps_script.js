@@ -508,7 +508,14 @@ function approveSubmission(submissionId) {
       }
     }
 
-    // Auto-complete quotation status on install approval
+    // Auto-complete quotation status on install approval.
+    // INTENTIONALLY eager: flips to 'completed' on the FIRST install approval with
+    // no `RollsInstalled >= EstRolls` guard. EstRolls is ceil(sqft/80), which
+    // over-estimates on ~37% of real jobs, so adding a >= guard would strand that
+    // third as permanently 'active'. undoApproval re-checks RollsInstalled < EstRolls
+    // before demoting, so an accidental completion is reversible. Multi-install
+    // "progress claim" jobs are handled by the separate PaymentMode workstream, not
+    // by relaxing this flip. Do NOT add an EstRolls guard here (reviewed 2026-08-20).
     if ((formType === 'install' || formType === 'Install') && quotNo) {
       var qtSheet = getSheet('Quotations');
       if (qtSheet) {
