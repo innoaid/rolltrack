@@ -508,14 +508,15 @@ function approveSubmission(submissionId) {
       }
     }
 
-    // Auto-complete quotation status on install approval.
-    // INTENTIONALLY eager: flips to 'completed' on the FIRST install approval with
-    // no `RollsInstalled >= EstRolls` guard. EstRolls is ceil(sqft/80), which
-    // over-estimates on ~37% of real jobs, so adding a >= guard would strand that
-    // third as permanently 'active'. undoApproval re-checks RollsInstalled < EstRolls
-    // before demoting, so an accidental completion is reversible. Multi-install
-    // "progress claim" jobs are handled by the separate PaymentMode workstream, not
-    // by relaxing this flip. Do NOT add an EstRolls guard here (reviewed 2026-08-20).
+    // Auto-complete quotation status on install approval — INTENTIONAL and LOAD-BEARING.
+    // A subcon submits ONCE per job for the whole roll count (never partial), and a job is
+    // assigned to exactly one subcon, so the first approval always completes the job — no
+    // `RollsInstalled >= EstRolls` guard is needed on the promote. This flip is also the ONLY
+    // thing preventing a DUPLICATE submission: a completed quotation drops out of the subcon
+    // install dropdown, so the same rolls cannot be claimed (and paid) twice. undoApproval
+    // keeps its EstRolls test because it reverses a partial state; the promote does not. Big
+    // multi-claim projects use a separate superior-owned flow, not this one. Do NOT add an
+    // EstRolls guard or otherwise weaken this flip (reviewed 2026-08-20).
     if ((formType === 'install' || formType === 'Install') && quotNo) {
       var qtSheet = getSheet('Quotations');
       if (qtSheet) {
@@ -826,7 +827,7 @@ function setupCrmSyncColumns() {
   var headers  = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
   var have     = {};
   headers.forEach(function(h) { if (h) have[String(h).trim()] = true; });
-  var needed = ['CrmStatus','CrmPhone','CrmMatch','RepairTagged','RepairFlagged','RepairFlaggedBy','SyncedAt'];
+  var needed = ['CrmStatus','CrmPhone','CrmMatch','RepairTagged','RepairFlagged','RepairFlaggedBy','RepairFlaggedAt','SyncedAt'];
   var added   = [];
   var nextCol = sheet.getLastColumn() + 1;
   needed.forEach(function(name) {
