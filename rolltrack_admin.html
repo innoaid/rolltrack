@@ -389,6 +389,7 @@ select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/
     <input type="date" id="bankTo"   style="font-size:12px;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--ink)">
     <button class="btn btn-b" style="padding:6px 14px;font-size:12px" onclick="generateBankTallyReport()">🏦 &nbsp;Tally</button>
   </div>
+  <div id="paySelBar"></div>
   <div id="payList"></div>
 </div>
 
@@ -1771,6 +1772,7 @@ function renderPayments() {
 
   const listEl = ge('payList');
   if (!listEl) return;
+  renderPaySelBar();
 
   const filtered = payFilter === 'all'
     ? scFiltered
@@ -1853,10 +1855,17 @@ function renderPayments() {
       ? `<div class="pay-ref">${fmtDate(p2dt)} · ${p2ref || '—'}</div>`
       : (p2DueStr && p1st === 'paid' ? `<div class="pay-ref">Due: ${p2DueStr}</div>` : '');
 
-    const p1Btn = p1st !== 'paid' && isPayable(p1Due)
+    const p1Payable = p1st !== 'paid' && isPayable(p1Due);
+    const p2Payable = p1st === 'paid' && p2st !== 'paid' && isPayable(p2Due);
+    const p1Btn = p1Payable
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',1)">Mark Paid</button>` : '';
-    const p2Btn = p1st === 'paid' && p2st !== 'paid' && isPayable(p2Due)
+    const p2Btn = p2Payable
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',2)">Mark Paid</button>` : '';
+    const tickStyle = 'width:18px;height:18px;cursor:pointer;accent-color:var(--green);flex-shrink:0';
+    const p1Chk = p1Payable
+      ? `<input type="checkbox" class="pay-tick" ${selectedPayments.has(pid+'|1')?'checked':''} onchange="togglePaySelect('${pid}',1,this.checked)" title="Select for batch Mark Paid" style="${tickStyle}">` : '';
+    const p2Chk = p2Payable
+      ? `<input type="checkbox" class="pay-tick" ${selectedPayments.has(pid+'|2')?'checked':''} onchange="togglePaySelect('${pid}',2,this.checked)" title="Select for batch Mark Paid" style="${tickStyle}">` : '';
 
     const scCode = p['SubconCode'] || '';
     const canUndo = p1st !== 'paid' && p2st !== 'paid';
@@ -1894,14 +1903,14 @@ function renderPayments() {
           <span class="pay-row-lbl">${p1Lbl}</span>
           <span class="pay-row-amt">RM ${fmtN(p1amt)}</span>${p1Badge}${p1Info}
         </div>
-        ${p1Btn}
+        <div style="display:flex;align-items:center;gap:8px">${p1Chk}${p1Btn}</div>
       </div>
       <div class="pay-row">
         <div class="pay-row-info">
           <span class="pay-row-lbl">${p2Lbl}</span>
           <span class="pay-row-amt">RM ${fmtN(p2amt)}</span>${p2Badge}${p2Info}
         </div>
-        ${p2Btn}
+        <div style="display:flex;align-items:center;gap:8px">${p2Chk}${p2Btn}</div>
       </div>
       ${undoFooter}
     </div>`;
@@ -1924,6 +1933,58 @@ function defaultBankRange() {
 
 // ── Weekly Payment Summary ────────────────────────────
 let batchPayItems = [];
+
+// ── Tick-to-select batch Mark Paid (per payment tranche) ──
+let selectedPayments = new Map();   // key `${pid}|${pNum}` -> {pid, pNum, amt, qno, name}
+
+function togglePaySelect(pid, pNum, checked) {
+  const key = pid + '|' + pNum;
+  if (!checked) { selectedPayments.delete(key); renderPaySelBar(); return; }
+  const p = (payData || []).find(x => (x['PaymentID'] || '') === pid);
+  if (!p) return;
+  selectedPayments.set(key, {
+    pid, pNum,
+    amt:  Number(p['Payment' + pNum + 'Amount'] || 0),
+    qno:  p['QuotationNo'] || '',
+    name: p['SubconName']  || p['SubconCode'] || ''
+  });
+  renderPaySelBar();
+}
+
+function clearPaySelection() {
+  selectedPayments.clear();
+  document.querySelectorAll('.pay-tick').forEach(cb => { cb.checked = false; });
+  renderPaySelBar();
+}
+
+function renderPaySelBar() {
+  const bar = ge('paySelBar');
+  if (!bar) return;
+  const arr = [...selectedPayments.values()];
+  if (!arr.length) { bar.innerHTML = ''; return; }
+  const total = arr.reduce((s, i) => s + Number(i.amt || 0), 0);
+  bar.innerHTML = `<div style="position:sticky;top:8px;z-index:6;background:var(--green-l);border:2px solid var(--green);border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+    <div style="font-size:13px;font-weight:800;color:var(--green)">☑ ${arr.length} payment${arr.length !== 1 ? 's' : ''} selected · RM ${fmtN(total)}</div>
+    <div style="display:flex;gap:6px">
+      <button class="btn btn-sm btn-ghost" onclick="clearPaySelection()">Clear</button>
+      <button class="btn btn-sm btn-g" onclick="openSelectedPay()">✅ Mark ${arr.length} as Paid</button>
+    </div>
+  </div>`;
+}
+
+// Open the batch modal pre-loaded with the ticked payments (reuses confirmBatchPay).
+function openSelectedPay() {
+  const arr = [...selectedPayments.values()];
+  if (!arr.length) { toast('Nothing selected'); return; }
+  batchPayItems = arr.map(i => ({ pid: i.pid, pNum: i.pNum, amt: i.amt, qno: i.qno, name: i.name }));
+  ge('bp_date').value = new Date().toISOString().split('T')[0];
+  ge('bp_ref').value  = '';
+  ge('bp_list').innerHTML = batchPayItems.map(i =>
+    `<div style="padding:3px 0;border-bottom:1px solid var(--border)">${i.name} · ${i.qno} · P${i.pNum} — <strong>RM ${fmtN(i.amt)}</strong></div>`
+  ).join('');
+  ge('bp_total').textContent = 'Total: RM ' + fmtN(batchPayItems.reduce((s, i) => s + i.amt, 0));
+  ge('batchPayOv').classList.add('open');
+}
 
 function getNextMonday(fromDate) {
   const d = new Date(fromDate);
@@ -2120,6 +2181,7 @@ async function confirmBatchPay() {
   }
   loading(false);
   toast(`Marked ${ok} paid` + (fail ? `, ${fail} failed` : ''));
+  selectedPayments.clear();
   await loadPayments();
 }
 
