@@ -1861,11 +1861,13 @@ function renderPayments() {
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',1)">Mark Paid</button>` : '';
     const p2Btn = p2Payable
       ? `<button class="btn btn-sm btn-g" onclick="openPayModal('${pid}',2)">Mark Paid</button>` : '';
-    const tickStyle = 'width:18px;height:18px;cursor:pointer;accent-color:var(--green);flex-shrink:0';
+    const tickCss = on => `width:26px;height:26px;border-radius:6px;cursor:pointer;flex-shrink:0;font-size:15px;font-weight:900;line-height:1;display:inline-flex;align-items:center;justify-content:center;padding:0;color:#fff;border:2px solid ${on?'var(--green)':'var(--border)'};background:${on?'var(--green)':'var(--surface)'}`;
+    const p1Sel = selectedPayments.has(pid+'|1');
+    const p2Sel = selectedPayments.has(pid+'|2');
     const p1Chk = p1Payable
-      ? `<input type="checkbox" class="pay-tick" ${selectedPayments.has(pid+'|1')?'checked':''} onchange="togglePaySelect('${pid}',1,this.checked)" title="Select for batch Mark Paid" style="${tickStyle}">` : '';
+      ? `<button type="button" class="pay-tick" onclick="togglePaySelect('${pid}',1,this)" title="Select for batch Mark Paid" style="${tickCss(p1Sel)}">${p1Sel?'✓':''}</button>` : '';
     const p2Chk = p2Payable
-      ? `<input type="checkbox" class="pay-tick" ${selectedPayments.has(pid+'|2')?'checked':''} onchange="togglePaySelect('${pid}',2,this.checked)" title="Select for batch Mark Paid" style="${tickStyle}">` : '';
+      ? `<button type="button" class="pay-tick" onclick="togglePaySelect('${pid}',2,this)" title="Select for batch Mark Paid" style="${tickCss(p2Sel)}">${p2Sel?'✓':''}</button>` : '';
 
     const scCode = p['SubconCode'] || '';
     const canUndo = p1st !== 'paid' && p2st !== 'paid';
@@ -1937,23 +1939,35 @@ let batchPayItems = [];
 // ── Tick-to-select batch Mark Paid (per payment tranche) ──
 let selectedPayments = new Map();   // key `${pid}|${pNum}` -> {pid, pNum, amt, qno, name}
 
-function togglePaySelect(pid, pNum, checked) {
+function paintTick(btn, on) {
+  if (!btn) return;
+  btn.style.background  = on ? 'var(--green)' : 'var(--surface)';
+  btn.style.borderColor = on ? 'var(--green)' : 'var(--border)';
+  btn.textContent = on ? '✓' : '';
+}
+
+function togglePaySelect(pid, pNum, btn) {
   const key = pid + '|' + pNum;
-  if (!checked) { selectedPayments.delete(key); renderPaySelBar(); return; }
-  const p = (payData || []).find(x => (x['PaymentID'] || '') === pid);
-  if (!p) return;
-  selectedPayments.set(key, {
-    pid, pNum,
-    amt:  Number(p['Payment' + pNum + 'Amount'] || 0),
-    qno:  p['QuotationNo'] || '',
-    name: p['SubconName']  || p['SubconCode'] || ''
-  });
+  const turnOn = !selectedPayments.has(key);
+  if (!turnOn) {
+    selectedPayments.delete(key);
+  } else {
+    const p = (payData || []).find(x => (x['PaymentID'] || '') === pid);
+    if (!p) return;
+    selectedPayments.set(key, {
+      pid, pNum,
+      amt:  Number(p['Payment' + pNum + 'Amount'] || 0),
+      qno:  p['QuotationNo'] || '',
+      name: p['SubconName']  || p['SubconCode'] || ''
+    });
+  }
+  paintTick(btn, turnOn);
   renderPaySelBar();
 }
 
 function clearPaySelection() {
   selectedPayments.clear();
-  document.querySelectorAll('.pay-tick').forEach(cb => { cb.checked = false; });
+  document.querySelectorAll('.pay-tick').forEach(b => paintTick(b, false));
   renderPaySelBar();
 }
 
